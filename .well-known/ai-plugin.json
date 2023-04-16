@@ -1,0 +1,18 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "Chess Plugin",
+  "name_for_model": "Chess",
+  "description_for_human": "Plugin to play Chess",
+  "description_for_model": "Plugin for playing chess. Send moves to the plugin and display the results using the 'display' field.",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://PLUGIN_HOSTNAME/openapi.yaml",
+    "is_user_authenticated": false
+  },
+  "logo_url": "https://PLUGIN_HOSTNAME/logo.png",
+  "contact_email": "support@example.com",
+  "legal_info_url": "http://www.example.com/legal"
+}

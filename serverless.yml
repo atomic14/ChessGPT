@@ -1,0 +1,70 @@
+service: chatgpt-chess-plugin
+
+frameworkVersion: "3"
+
+custom:
+  tableName: "games-table-${sls:stage}"
+  wsgi:
+    app: app.app
+  dynamodb:
+    # If you only want to use DynamoDB Local in some stages, declare them here
+    stages:
+      - dev
+    start:
+      port: 8000
+      inMemory: true
+      heapInitial: 200m
+      heapMax: 1g
+      migrate: true
+      seed: true
+      convertEmptyValues: true
+
+provider:
+  name: aws
+  runtime: python3.9
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - Fn::GetAtt: [GamesTable, Arn]
+  environment:
+    GAMES_TABLE: ${self:custom.tableName}
+
+functions:
+  api:
+    handler: wsgi_handler.handler
+    events:
+      - httpApi: "*"
+
+plugins:
+  - serverless-wsgi
+  - serverless-python-requirements
+  - serverless-dynamodb-local
+
+resources:
+  Resources:
+    GamesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: conversationId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: conversationId
+            KeyType: HASH
+        TableName: ${self:custom.tableName}
+        BillingMode: PAY_PER_REQUEST
+
+package:
+  exclude:
+    - node_modules/**
+    - venv/**
+    - dynamodb/**
