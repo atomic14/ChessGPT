@@ -92,29 +92,30 @@ def get_board_state(conversation_id_hash, board, move_history, assistant_color):
     else:
         turn = "black"
     # pair the moves from white and black
-    moves_string = ""
+    moves = []
     for i in range(0, len(move_history), 2):
         if i + 1 < len(move_history):
-            moves_string += f"{int(i/2 + 1)}. {move_history[i]} {move_history[i + 1]} "
+            moves.append(f"{int(i/2 + 1)}. {move_history[i]} {move_history[i + 1]}")
         else:
-            moves_string += f"{int(i/2 + 1)}. {move_history[i]} "
-    moves_string = moves_string.strip()
+            moves.append(f"{int(i/2 + 1)}. {move_history[i]}")
+    # only provide the last 10 moves
+    moves_string = " ".join(moves[-10:])
     # create the instructions for the assistant
     if turn == assistant_color:
         instructions = (
-            "It's the assistant's turn. Use the FEN to determine the location of the pieces. Select the best move for the assistant making sure you avoid blundering pieces and making mistakes."
-            + "Pay close attention to the position of the pieces on the board. Anlyze the position and make the best move for the assistant. "
+            f"It's the assistant's turn. The assistant is playing {turn}. Given the following FEN string '{board.fen()}' and the last 10 moves '{moves_string}' select the best move for {assistant_color}. "
+            + f"Pay close attention to the position of the pieces on the board. Make the best move for {assistant_color}. "
             + "Use the make move API to make the move for the assistant and the show the board to the user using the markdown from the display field."
         )
     else:
         instructions = (
-            "It's the user's turn to move. Show the board to the user using the markdown from the display field. Prompt the user to make their move using SAN notation"
+            f"It's the user's turn to move. The user is playing {turn}. Show the board to the user using the markdown from the display field. Prompt the user to make their move using SAN notation"
             + " (e.g. e4, Nf3, etc). Use the make move API to make the move for the user and the show the board to the user using the markdown from the display field."
         )
 
     return {
-        "move_history": moves_string,
-        "FEN": board.fen(),
+        # "move_history": moves_string,
+        # "FEN": board.fen(),
         "game_over": board.is_game_over(),
         "display": get_markdown(conversation_id_hash, move_history),
         "EXTRA_INFORMATION_TO_ASSISTANT": instructions,
