@@ -85,12 +85,7 @@ def get_markdown(conversation_id_hash, move_history):
     return markdown
 
 
-def get_board_state(conversation_id_hash, board, move_history, assistant_color):
-    # work out who's turn is it from the move_history
-    if len(move_history) % 2 == 0:
-        turn = "white"
-    else:
-        turn = "black"
+def format_moves(move_history):
     # pair the moves from white and black
     moves = []
     for i in range(0, len(move_history), 2):
@@ -98,6 +93,17 @@ def get_board_state(conversation_id_hash, board, move_history, assistant_color):
             moves.append(f"{int(i/2 + 1)}. {move_history[i]} {move_history[i + 1]}")
         else:
             moves.append(f"{int(i/2 + 1)}. {move_history[i]}")
+    return moves
+
+
+def get_board_state(conversation_id_hash, board, move_history, assistant_color):
+    # work out who's turn is it from the move_history
+    if len(move_history) % 2 == 0:
+        turn = "white"
+    else:
+        turn = "black"
+    # pair the moves from white and black
+    moves = format_moves(move_history)
     # only provide the last 10 moves
     moves_string = " ".join(moves[-10:])
     # create the instructions for the assistant
@@ -205,6 +211,27 @@ def make_move():
             jsonify(board_state),
             400,
         )
+
+
+@app.route("/api/fen", methods=["GET"])
+def get_fen():
+    conversation_id = request.headers.get("Openai-Conversation-Id")
+    conversation_id_hash = get_conversation_id_hash(conversation_id)
+    board, _, _ = load_board(conversation_id_hash)
+    if not board:
+        return jsonify({"success": False, "message": "No game found"}), 404
+    return jsonify({"FEN": board.fen()})
+
+
+@app.route("/api/move_history", methods=["GET"])
+def get_move_history():
+    conversation_id = request.headers.get("Openai-Conversation-Id")
+    conversation_id_hash = get_conversation_id_hash(conversation_id)
+    board, move_history, _ = load_board(conversation_id_hash)
+    if not board:
+        return jsonify({"success": False, "message": "No game found"}), 404
+    moves = format_moves(move_history)
+    return jsonify({"move_history": moves})
 
 
 @app.route("/board.svg", methods=["GET"])

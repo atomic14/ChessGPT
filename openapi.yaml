@@ -67,17 +67,57 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/fen:
+    get:
+      summary: Get the FEN (Forsyth-Edwards Notation) representation of the board - use this is the user asks for the FEN
+      operationId: getFEN
+      responses:
+        "200":
+          description: FEN representation of the board
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  FEN:
+                    description: The FEN (Forsyth-Edwards Notation) representation of the board - use this to determine where the pieces are
+                    type: string
+                required:
+                  - FEN
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/move_history:
+    get:
+      summary: Get the complete move hisory of the game - use this if the user asks for the move history or an analysis of the game
+      operationId: getMoveHistory
+      responses:
+        "200":
+          description: The move history e.g. "1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. Re1 Nd6 6. Nxe5 Be7 7. Bxc6"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  move_history:
+                    description: List of the moves that have been made so far in the game - e.g. "1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. Re1 Nd6 6. Nxe5 Be7 7. Bxc6"
+                    type: string
+                required:
+                  - move_history
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   schemas:
     BoardState:
       type: object
       properties:
-        # move_history:
-        #   description: List of the moves that have been made so far in the game - e.g. "1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. Re1 Nd6 6. Nxe5 Be7 7. Bxc6"
-        #   type: string
-        # FEN:
-        #   description: The FEN (Forsyth-Edwards Notation) representation of the board - use this to determine where the pieces are
-        #   type: string
         game_over:
           description: Whether the game is over or not
           type: boolean
@@ -88,8 +128,6 @@ components:
           description: Extra information for the assistant
           type: string
       required:
-        # - move_history
-        # - FEN
         - game_over
         - display
         - EXTRA_INFORMATION_TO_ASSISTANT
@@ -99,12 +137,6 @@ components:
         error_message:
           description: Error message
           type: string
-        # move_history:
-        #   description: List of the moves that have been made so far in the game - e.g. "1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. Re1 Nd6 6. Nxe5 Be7 7. Bxc6"
-        #   type: string
-        # FEN:
-        #   description: The FEN (Forsyth-Edwards Notation) representation of the board - use this to determine where the pieces are
-        #   type: string
         game_over:
           description: Whether the game is over or not
           type: boolean
@@ -116,8 +148,6 @@ components:
           type: string
       required:
         - error_message
-        # - move_history
-        # - FEN
         - game_over
         - display
         - EXTRA_INFORMATION_TO_ASSISTANT
