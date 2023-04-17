@@ -34,16 +34,14 @@ def get_conversation_id_hash(conversation_id):
 
 
 # save the board state to dynamoDB - we'll just save the move history
-def save_board(conversation_id_hash, move_history):
-    logging.debug(
-        "****** Saving board state to table:"
-        + GAMES_TABLE
-        + " for conversation: "
-        + conversation_id_hash
-    )
+def save_board(conversation_id_hash, move_history, assistant_color):
     dynamodb_client.put_item(
         TableName=GAMES_TABLE,
-        Item={"conversationId": conversation_id_hash, "moves": ",".join(move_history)},
+        Item={
+            "conversationId": conversation_id_hash,
+            "moves": ",".join(move_history),
+            "assistant_color": assistant_color,
+        },
     )
 
 
@@ -56,7 +54,7 @@ def load_board(conversation_id_hash, max_move=None):
     item = result.get("Item")
     if not item:
         logging.error("No game found for conversation: " + conversation_id_hash)
-        return None, None
+        return None, None, None
 
     moves_string = item.get("moves")
     if not moves_string:
@@ -70,7 +68,8 @@ def load_board(conversation_id_hash, max_move=None):
     print("Max move: " + str(max_move))
     for move in moves[:max_move]:
         board.push_san(move)
-    return board, moves
+    assistant_color = item.get("assistant_color")
+    return board, moves, assistant_color
 
 
 # get the list of legan moves in SAN format
@@ -79,26 +78,19 @@ def get_legal_move_list(board):
     return legal_moves
 
 
-def get_markdown(conversation_id_hash, board, move_history):
+def get_markdown(conversation_id_hash, move_history):
     # create an MD5 hash of the board FEN
     # this will be used to bust the browser cache
-    markdown = f"![Board](https://{request.host}/board.svg?cid={conversation_id_hash}&m={len(move_history)})"
+    markdown = f"![Board]({request.scheme}://{request.host}/board.svg?cid={conversation_id_hash}&m={len(move_history)})"
     return markdown
 
 
-def get_board_state(host, conversation_id_hash, board, move_history):
+def get_board_state(conversation_id_hash, board, move_history, assistant_color):
     # work out who's turn is it from the move_history
     if len(move_history) % 2 == 0:
-        turn = "White"
+        turn = "white"
     else:
-        turn = "Black"
-    # get the positions of the pieces
-    piece_map = board.piece_map()
-    # list all the pieces and their positions
-    pieces = [
-        {"piece": pieces.symbol(), "square": chess.SQUARE_NAMES[square - 1]}
-        for square, pieces in piece_map.items()
-    ]
+        turn = "black"
     # pair the moves from white and black
     moves_string = ""
     for i in range(0, len(move_history), 2):
@@ -107,16 +99,25 @@ def get_board_state(host, conversation_id_hash, board, move_history):
         else:
             moves_string += f"{int(i/2 + 1)}. {move_history[i]} "
     moves_string = moves_string.strip()
+    # create the instructions for the assistant
+    if turn == assistant_color:
+        instructions = (
+            "It's the assistant's turn. Use the contents of the 'fen' field and the 'move_history' field to select the best move for the assistant. "
+            + "Pay close attention to the position of the pieces on the board. "
+            + "Use the make move API to make the move for the assistant and the show the board to the user using the markdown from the display field."
+        )
+    else:
+        instructions = (
+            "It's the user's turn to move. Show the board to the user using the markdown from the display field. Prompt the user to make their move using SAN notation"
+            + " (e.g. e4, Nf3, etc). Use the make move API to make the move for the user and the show the board to the user using the markdown from the display field."
+        )
 
     return {
         "move_history": moves_string,
-        # "fen": board.fen(),
-        "pieces": pieces,
+        "fen": board.fen(),
         "game_over": board.is_game_over(),
-        "nextPlayer": turn,
-        "display": get_markdown(conversation_id_hash, board, move_history),
-        "instructions": "Show the board to the user",
-        "EXTRA_INFORMATION_TO_ASSISTANT": "Use the move_histroy to work out the best move for the assistant. If it is your turn, make your move. Show the user the board after your turn using the markdown from the display property.",
+        "display": get_markdown(conversation_id_hash, move_history),
+        "EXTRA_INFORMATION_TO_ASSISTANT": instructions,
     }
 
 
@@ -124,19 +125,42 @@ def get_board_state(host, conversation_id_hash, board, move_history):
 def new_game():
     conversation_id = request.headers.get("Openai-Conversation-Id")
     conversation_id_hash = get_conversation_id_hash(conversation_id)
+
+    data = request.get_json()
+    if "assistant_color" not in data:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "Missing assistant_color in request data. Please specify 'white' or 'black'",
+                }
+            ),
+            400,
+        )
+    assistant_color = data["assistant_color"]
+    if assistant_color not in ["white", "black"]:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "Invalid assistant_color in request data. Please specify 'white' or 'black'",
+                }
+            ),
+            400,
+        )
     # no moves yet
-    save_board(conversation_id_hash, [])
+    save_board(conversation_id_hash, [], assistant_color)
     # blank board
     board = chess.Board()
     logging.debug("New game started.")
-    return jsonify(get_board_state(request.host, conversation_id_hash, board, []))
+    return jsonify(get_board_state(conversation_id_hash, board, [], assistant_color))
 
 
 @app.route("/api/move", methods=["POST"])
 def make_move():
     conversation_id = request.headers.get("Openai-Conversation-Id")
     conversation_id_hash = get_conversation_id_hash(conversation_id)
-    board, move_history = load_board(conversation_id_hash)
+    board, move_history, assistant_color = load_board(conversation_id_hash)
     if not board:
         return jsonify({"success": False, "message": "No game found"}), 404
 
@@ -153,9 +177,11 @@ def make_move():
         if move in get_legal_move_list(board):
             board.push_san(move)
             move_history.append(move)
-            save_board(conversation_id_hash, move_history)
+            save_board(conversation_id_hash, move_history, assistant_color)
             return jsonify(
-                get_board_state(request.host, conversation_id_hash, board, move_history)
+                get_board_state(
+                    conversation_id_hash, board, move_history, assistant_color
+                )
             )
         else:
             logging.error("Illegal move: " + move)
@@ -183,7 +209,7 @@ def board():
     conversation_id_hash = request.args.get("cid")
     move = request.args.get("m")
     move = int(move)
-    board, move_history = load_board(conversation_id_hash, move)
+    board, _, _ = load_board(conversation_id_hash, move)
 
     svg_data = chess.svg.board(board=board, size=400)
     response = Response(svg_data, mimetype="image/svg+xml")
@@ -198,6 +224,7 @@ def serve_ai_plugin():
         data = f.read()
         # replace the string PLUGIN_HOSTNAME with the actual hostname
         data = data.replace("PLUGIN_HOSTNAME", request.host)
+        data = data.replace("PROTOCOL", request.scheme)
         # return the modified file
         return Response(data, mimetype="application/json")
 
@@ -209,6 +236,7 @@ def serve_openai_yaml():
         data = f.read()
         # replace the string PLUGIN_HOSTNAME with the actual hostname
         data = data.replace("PLUGIN_HOSTNAME", request.host)
+        data = data.replace("PROTOCOL", request.scheme)
         # return the modified file
         return Response(data, mimetype="text/yaml")
 

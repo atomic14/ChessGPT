@@ -9,10 +9,10 @@
   },
   "api": {
     "type": "openapi",
-    "url": "https://PLUGIN_HOSTNAME/openapi.yaml",
+    "url": "PROTOCOL://PLUGIN_HOSTNAME/openapi.yaml",
     "is_user_authenticated": false
   },
-  "logo_url": "https://PLUGIN_HOSTNAME/logo.png",
+  "logo_url": "PROTOCOL://PLUGIN_HOSTNAME/logo.png",
   "contact_email": "support@example.com",
   "legal_info_url": "http://www.example.com/legal"
 }

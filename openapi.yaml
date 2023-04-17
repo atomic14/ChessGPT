@@ -7,6 +7,18 @@ paths:
     post:
       summary: Start a new chess game. Creates a board in the default state for a new game.
       operationId: newGame
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                assistant_color:
+                  description: The color of the assistant - "white" or "black"
+                  type: string
+              required:
+                - assistant_color
       responses:
         "200":
           description: New game state
@@ -20,12 +32,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-      parameters:
-        - name: Openai-Conversation-Id
-          in: header
-          required: true
-          schema:
-            type: string
   /api/move:
     post:
       summary: Make a chess move use SAN format. Convert from UCI if necessary. Display the results to the user.
@@ -38,6 +44,7 @@ paths:
               type: object
               properties:
                 move:
+                  description: The move to make in SAN format
                   type: string
               required:
                 - move
@@ -60,12 +67,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-      parameters:
-        - name: Openai-Conversation-Id
-          in: header
-          required: true
-          schema:
-            type: string
 components:
   schemas:
     BoardState:
@@ -74,11 +75,8 @@ components:
         move_history:
           description: List of the moves that have been made so far in the game - e.g. "1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. Re1 Nd6 6. Nxe5 Be7 7. Bxc6"
           type: string
-        # fen:
-        #   description: The FEN representation of the board
-        #   type: string
-        nextPlayer:
-          description: The color of the player whose turn it is next - 'White' or 'Black'
+        fen:
+          description: The FEN (Forsyth-Edwards Notation) representation of the board
           type: string
         game_over:
           description: Whether the game is over or not
@@ -86,32 +84,13 @@ components:
         display:
           description: Markdown representation of the board to show to the user after each move
           type: string
-        # board:
-        #   description: An ascii representation of the board state. Each row is seperated by a newline. Capital letters are white pieces, lowercase are black.
-        #   type: string
-        pieces:
-          description: An array of disctionaries representing all the pieces currently on the board and their locations. Uppercase letters are white pieces, lowercase are black.
-          type: array
-          items:
-            type: object
-            properties:
-              piece:
-                type: string
-              square:
-                type: string
-            required:
-              - piece
-              - square
         EXTRA_INFORMATION_TO_ASSISTANT:
           description: Extra information for the assistant
           type: string
       required:
         - move_history
-        # - fen
-        - pieces
+        - fen
         - game_over
-        - nextPlayer
-        # - board
         - display
         - EXTRA_INFORMATION_TO_ASSISTANT
     Error:

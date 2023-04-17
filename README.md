@@ -21,8 +21,7 @@ If you don't have access then you can watch a video of it in action here: https:
 To run the plugin locally and test it follow these commands. You can then install it into ChatGPT.
 
 ```
-docker pull amazon/dynamodb-local:latest
-docker run -p 8000:8000 amazon/dynamodb-local:latest
+docker compose up
 ```
 
 ```
