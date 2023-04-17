@@ -185,20 +185,23 @@ def make_move():
             )
         else:
             logging.error("Illegal move: " + move)
+            board_state = get_board_state(
+                conversation_id_hash, board, move_history, assistant_color
+            )
+            board_state["error_message"] = "Illegal move - make sure you use SAN"
             return (
-                jsonify(
-                    {
-                        "success": False,
-                        "message": "Illegal move - make sure you use SAN",
-                    }
-                ),
+                jsonify(board_state),
                 400,
             )
     except ValueError as e:
         logging.error("Invalid move format: " + move)
         logging.error(e)
+        board_state = get_board_state(
+            conversation_id_hash, board, move_history, assistant_color
+        )
+        board_state["error_message"] = "Invalid move format - use SAN"
         return (
-            jsonify({"success": False, "message": "Invalid move format - use SAN"}),
+            jsonify(board_state),
             400,
         )
 

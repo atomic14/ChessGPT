@@ -60,7 +60,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/BoardStateError"
         "404":
           description: Not found
           content:
@@ -93,10 +93,31 @@ components:
         - game_over
         - display
         - EXTRA_INFORMATION_TO_ASSISTANT
-    Error:
+    BoardStateError:
       type: object
       properties:
-        error:
+        error_message:
+          description: Error message
+          type: string
+        move_history:
+          description: List of the moves that have been made so far in the game - e.g. "1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. Re1 Nd6 6. Nxe5 Be7 7. Bxc6"
+          type: string
+        FEN:
+          description: The FEN (Forsyth-Edwards Notation) representation of the board - use this to determine where the pieces are
+          type: string
+        game_over:
+          description: Whether the game is over or not
+          type: boolean
+        display:
+          description: Markdown representation of the board to show to the user after each move
+          type: string
+        EXTRA_INFORMATION_TO_ASSISTANT:
+          description: Extra information for the assistant
           type: string
       required:
-        - error
+        - error_message
+        - move_history
+        - FEN
+        - game_over
+        - display
+        - EXTRA_INFORMATION_TO_ASSISTANT
