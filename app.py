@@ -102,8 +102,8 @@ def get_board_state(conversation_id_hash, board, move_history, assistant_color):
     # create the instructions for the assistant
     if turn == assistant_color:
         instructions = (
-            "It's the assistant's turn. Use the contents of the 'fen' field and the 'move_history' field to select the best move for the assistant. "
-            + "Pay close attention to the position of the pieces on the board. "
+            "It's the assistant's turn. Use the FEN to determine the location of the pieces. Select the best move for the assistant making sure you avoid blundering pieces and making mistakes."
+            + "Pay close attention to the position of the pieces on the board. Anlyze the position and make the best move for the assistant. "
             + "Use the make move API to make the move for the assistant and the show the board to the user using the markdown from the display field."
         )
     else:
@@ -114,7 +114,7 @@ def get_board_state(conversation_id_hash, board, move_history, assistant_color):
 
     return {
         "move_history": moves_string,
-        "fen": board.fen(),
+        "FEN": board.fen(),
         "game_over": board.is_game_over(),
         "display": get_markdown(conversation_id_hash, move_history),
         "EXTRA_INFORMATION_TO_ASSISTANT": instructions,

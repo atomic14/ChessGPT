@@ -75,8 +75,8 @@ components:
         move_history:
           description: List of the moves that have been made so far in the game - e.g. "1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. Re1 Nd6 6. Nxe5 Be7 7. Bxc6"
           type: string
-        fen:
-          description: The FEN (Forsyth-Edwards Notation) representation of the board
+        FEN:
+          description: The FEN (Forsyth-Edwards Notation) representation of the board - use this to determine where the pieces are
           type: string
         game_over:
           description: Whether the game is over or not
@@ -89,7 +89,7 @@ components:
           type: string
       required:
         - move_history
-        - fen
+        - FEN
         - game_over
         - display
         - EXTRA_INFORMATION_TO_ASSISTANT
