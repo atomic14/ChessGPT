@@ -121,3 +121,10 @@ components:
         - game_over
         - display
         - EXTRA_INFORMATION_TO_ASSISTANT
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
