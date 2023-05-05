@@ -64,7 +64,7 @@ resources:
         BillingMode: PAY_PER_REQUEST
 
 package:
-  exclude:
-    - node_modules/**
-    - venv/**
-    - dynamodb/**
+  patterns:
+    - "!node_modules/**"
+    - "!venv/**"
+    - "!dynamodb/**"
