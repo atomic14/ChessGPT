@@ -6,7 +6,9 @@ One of the problems that ChatGPT has is that it can forget where the pieces are 
 
 This plugin should help it remember where the pieces are (though it still sometimes forgets!) and also provides a nice display of the board.
 
-One very important thing that we don't want to do, is to help ChatGPT pick better moves. We're just trying to provide it with more context so that it can keep track of the game and display it to the user. ChatGPT should always be the one choosing which move to make.
+~~One very important thing that we don't want to do, is to help ChatGPT pick better moves. We're just trying to provide it with more context so that it can keep track of the game and display it to the user. ChatGPT should always be the one choosing which move to make.~~
+
+I've concluded that the above is not really what we want to do. We want to give the user of the plugin the best experience and use ChatGPT to help them play a better game of chess. So I've added in the stockfish engine to help ChatGPT pick better moves.
 
 ## Usage
 
@@ -28,8 +30,14 @@ docker compose up
 sls dynamodb migrate
 ```
 
+You'll also need stockfish installed (adjust this for your platform)
+
 ```
-IS_OFFLINE=True sls wsgi serve
+brew install stockfish
+```
+
+```
+IS_OFFLINE=True sls wsgi serve -p 5204
 ```
 
 ## Deploying

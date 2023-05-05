@@ -1,4 +1,6 @@
+import collections
 import os
+import shutil
 import boto3
 from flask import Flask, jsonify, make_response, request, send_from_directory, Response
 import chess
@@ -7,13 +9,18 @@ import chess.pgn
 import logging
 import hashlib
 from flask_cors import CORS
-
+from stockfish import Stockfish
 
 app = Flask(__name__)
 CORS(app)
 
 logging.basicConfig(level=logging.DEBUG)
 
+
+# create a named tuple to hold the game state
+GameState = collections.namedtuple(
+    "GameState", ["board", "move_history", "assistant_color", "elo"]
+)
 
 if os.environ.get("IS_OFFLINE") == "True":
     print("Running in offline mode")
@@ -28,26 +35,74 @@ else:
 
 GAMES_TABLE = os.environ["GAMES_TABLE"]
 
+LEVELS = [
+    {
+        "name": "Beginner",
+        "elo": 1000,
+        "description": "The assistant will play at an Elo rating of 1000. This is a good level for beginners.",
+    },
+    {
+        "name": "Intermediate",
+        "elo": 1500,
+        "description": "The assistant will play at an Elo rating of 1500. This is a good level for intermediate players.",
+    },
+    {
+        "name": "Advanced",
+        "elo": 2000,
+        "description": "The assistant will play at an Elo rating of 2000. This is a good level for advanced players.",
+    },
+    {
+        "name": "Expert",
+        "elo": 2500,
+        "description": "The assistant will play at an Elo rating of 2500. This is a good level for expert players.",
+    },
+    {
+        "name": "Grandmaster",
+        "elo": 3000,
+        "description": "The assistant will play at an Elo rating of 3000. This is a good level for grandmasters.",
+    },
+]
+
 
 def get_conversation_id_hash(conversation_id):
     return hashlib.md5(conversation_id.encode("utf-8")).hexdigest()
 
 
+def get_stockfish_path():
+    result = shutil.which("stockfish")
+    if result is None:
+        # locate the binary from ./stockfish
+        result = os.path.join(os.path.dirname(__file__), "stockfish/stockfish")
+    return result
+
+
+def get_stockfish(elo, fen):
+    stockfish = Stockfish(get_stockfish_path())
+    stockfish.set_elo_rating(elo)
+    stockfish.set_fen_position(fen)
+    return stockfish
+
+
+def get_best_moves(stockfish, num=5):
+    return stockfish.get_top_moves(num)
+
+
 # save the board state to dynamoDB - we'll just save the move history
-def save_board(conversation_id_hash, move_history, assistant_color):
+def save_board(conversation_id_hash: str, game_state: GameState):
     dynamodb_client.put_item(
         TableName=GAMES_TABLE,
         Item={
             "conversationId": conversation_id_hash,
-            "moves": ",".join(move_history),
-            "assistant_color": assistant_color,
+            "moves": ",".join(game_state.move_history),
+            "assistant_color": game_state.assistant_color,
+            "elo": str(game_state.elo),
         },
     )
 
 
 # load the board up from dynamoDB - we'll get the move history and then
 # replay the moves to get the board state
-def load_board(conversation_id_hash, max_move=None):
+def load_board(conversation_id_hash, max_move=None) -> GameState:
     result = dynamodb_client.get_item(
         TableName=GAMES_TABLE, Key={"conversationId": conversation_id_hash}
     )
@@ -69,10 +124,11 @@ def load_board(conversation_id_hash, max_move=None):
     for move in moves[:max_move]:
         board.push_san(move)
     assistant_color = item.get("assistant_color")
-    return board, moves, assistant_color
+    elo = int(item.get("elo", "2000"))
+    return GameState(board, moves, assistant_color, elo)
 
 
-# get the list of legan moves in SAN format
+# get the list of legal moves in SAN format
 def get_legal_move_list(board):
     legal_moves = [board.san(move) for move in board.legal_moves]
     return legal_moves
@@ -96,21 +152,26 @@ def format_moves(move_history):
     return moves
 
 
-def get_board_state(conversation_id_hash, board, move_history, assistant_color):
+def get_board_state(conversation_id_hash, game_state: GameState):
     # work out who's turn is it from the move_history
-    if len(move_history) % 2 == 0:
+    if len(game_state.move_history) % 2 == 0:
         turn = "white"
     else:
         turn = "black"
     # pair the moves from white and black
-    moves = format_moves(move_history)
-    # only provide the last 10 moves
-    moves_string = " ".join(moves[-10:])
+    moves = format_moves(game_state.move_history)
+    # get the best moves for the assistant or user (give the user grandmaster moves!)
+    best_move_elo = game_state.elo if turn == game_state.assistant_color else 3000
+    stockfish = get_stockfish(best_move_elo, game_state.board.fen())
+    best_moves = get_best_moves(stockfish)
+    # convert the best moves to SAN
+    best_moves_san = [
+        game_state.board.san(chess.Move.from_uci(move["Move"])) for move in best_moves
+    ]
     # create the instructions for the assistant
-    if turn == assistant_color:
+    if turn == game_state.assistant_color:
         instructions = (
-            f"It's the assistant's turn. The assistant is playing {turn}. Given the following FEN string '{board.fen()}' and the last 10 moves '{moves_string}' select the best move for {assistant_color}. "
-            + f"Pay close attention to the position of the pieces on the board. Make the best move for {assistant_color}. "
+            f"It's the assistant's turn. The assistant is playing {turn}. Pick a move from the following best moves for {turn}: {', '.join(best_moves_san)}. "
             + "Use the make move API to make the move for the assistant and the show the board to the user using the markdown from the display field."
         )
     else:
@@ -120,12 +181,18 @@ def get_board_state(conversation_id_hash, board, move_history, assistant_color):
         )
 
     return {
-        # "move_history": moves_string,
-        # "FEN": board.fen(),
-        "game_over": board.is_game_over(),
-        "display": get_markdown(conversation_id_hash, move_history),
+        "FEN": game_state.board.fen(),
+        "move_history": moves,
+        "game_over": game_state.board.is_game_over(),
+        "display": get_markdown(conversation_id_hash, game_state.move_history),
+        "best_moves": ", ".join(best_moves_san),
         "EXTRA_INFORMATION_TO_ASSISTANT": instructions,
     }
+
+
+@app.route("/api/levels", methods=["GET"])
+def get_levels():
+    return jsonify(LEVELS)
 
 
 @app.route("/api/new_game", methods=["POST"])
@@ -144,6 +211,44 @@ def new_game():
             ),
             400,
         )
+    if "elo" not in data:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "Missing elo in request data. Please specify a number between 1000 and 3000",
+                    "levels": LEVELS,
+                }
+            ),
+            400,
+        )
+    # check the elo is a number
+    try:
+        elo = int(data["elo"])
+    except ValueError:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "Invalid elo in request data. Please specify a number between 1000 and 3000",
+                    "levels": LEVELS,
+                }
+            ),
+            400,
+        )
+    # check the elo is valid
+    if elo < 0 or elo > 3000:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "Invalid elo in request data. Please specify a number between 0 and 3000",
+                    "levels": LEVELS,
+                }
+            ),
+            400,
+        )
+    # check the assistant_color is valid
     assistant_color = data["assistant_color"]
     if assistant_color not in ["white", "black"]:
         return (
@@ -155,20 +260,20 @@ def new_game():
             ),
             400,
         )
-    # no moves yet
-    save_board(conversation_id_hash, [], assistant_color)
     # blank board
     board = chess.Board()
+    game_state = GameState(board, [], assistant_color, elo)
+    save_board(conversation_id_hash, game_state)
     logging.debug("New game started.")
-    return jsonify(get_board_state(conversation_id_hash, board, [], assistant_color))
+    return jsonify(get_board_state(conversation_id_hash, game_state))
 
 
 @app.route("/api/move", methods=["POST"])
 def make_move():
     conversation_id = request.headers.get("Openai-Conversation-Id")
     conversation_id_hash = get_conversation_id_hash(conversation_id)
-    board, move_history, assistant_color = load_board(conversation_id_hash)
-    if not board:
+    game_state = load_board(conversation_id_hash)
+    if not game_state:
         return jsonify({"success": False, "message": "No game found"}), 404
 
     data = request.get_json()
@@ -180,21 +285,20 @@ def make_move():
         )
 
     move = data["move"]
+    # sometimes if there is an error we will get the same move twice
+    if len(game_state.move_history) > 0 and move == game_state.move_history[-1]:
+        return jsonify(get_board_state(conversation_id_hash, game_state))
+    # check the move is legal
     try:
-        if move in get_legal_move_list(board):
-            board.push_san(move)
-            move_history.append(move)
-            save_board(conversation_id_hash, move_history, assistant_color)
-            return jsonify(
-                get_board_state(
-                    conversation_id_hash, board, move_history, assistant_color
-                )
-            )
+        if move in get_legal_move_list(game_state.board):
+            # make the move
+            game_state.board.push_san(move)
+            game_state.move_history.append(move)
+            save_board(conversation_id_hash, game_state)
+            return jsonify(get_board_state(conversation_id_hash, game_state))
         else:
             logging.error("Illegal move: " + move)
-            board_state = get_board_state(
-                conversation_id_hash, board, move_history, assistant_color
-            )
+            board_state = get_board_state(conversation_id_hash, game_state)
             board_state["error_message"] = "Illegal move - make sure you use SAN"
             return (
                 jsonify(board_state),
@@ -203,9 +307,7 @@ def make_move():
     except ValueError as e:
         logging.error("Invalid move format: " + move)
         logging.error(e)
-        board_state = get_board_state(
-            conversation_id_hash, board, move_history, assistant_color
-        )
+        board_state = get_board_state(conversation_id_hash, game_state)
         board_state["error_message"] = "Invalid move format - use SAN"
         return (
             jsonify(board_state),
@@ -217,20 +319,20 @@ def make_move():
 def get_fen():
     conversation_id = request.headers.get("Openai-Conversation-Id")
     conversation_id_hash = get_conversation_id_hash(conversation_id)
-    board, _, _ = load_board(conversation_id_hash)
-    if not board:
+    game_state = load_board(conversation_id_hash)
+    if not game_state:
         return jsonify({"success": False, "message": "No game found"}), 404
-    return jsonify({"FEN": board.fen()})
+    return jsonify({"FEN": game_state.board.fen()})
 
 
 @app.route("/api/move_history", methods=["GET"])
 def get_move_history():
     conversation_id = request.headers.get("Openai-Conversation-Id")
     conversation_id_hash = get_conversation_id_hash(conversation_id)
-    board, move_history, _ = load_board(conversation_id_hash)
+    game_state = load_board(conversation_id_hash)
     if not board:
         return jsonify({"success": False, "message": "No game found"}), 404
-    moves = format_moves(move_history)
+    moves = format_moves(game_state.move_history)
     return jsonify({"move_history": moves})
 
 
@@ -240,9 +342,9 @@ def board():
     conversation_id_hash = request.args.get("cid")
     move = request.args.get("m")
     move = int(move)
-    board, _, _ = load_board(conversation_id_hash, move)
+    game_state = load_board(conversation_id_hash, move)
 
-    svg_data = chess.svg.board(board=board, size=400)
+    svg_data = chess.svg.board(board=game_state.board, size=400)
     response = Response(svg_data, mimetype="image/svg+xml")
     response.headers["Cache-Control"] = "public, max-age=86400"
     return response

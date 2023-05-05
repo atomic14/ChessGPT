@@ -4,3 +4,4 @@ markupsafe==2.0.1
 flask-cors
 boto3
 chess
+stockfish
