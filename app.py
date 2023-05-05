@@ -285,9 +285,6 @@ def make_move():
         )
 
     move = data["move"]
-    # sometimes if there is an error we will get the same move twice
-    if len(game_state.move_history) > 0 and move == game_state.move_history[-1]:
-        return jsonify(get_board_state(conversation_id_hash, game_state))
     # check the move is legal
     try:
         if move in get_legal_move_list(game_state.board):
