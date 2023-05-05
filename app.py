@@ -181,8 +181,6 @@ def get_board_state(conversation_id_hash, game_state: GameState):
         )
 
     return {
-        "FEN": game_state.board.fen(),
-        "move_history": moves,
         "game_over": game_state.board.is_game_over(),
         "display": get_markdown(conversation_id_hash, game_state.move_history),
         "best_moves": ", ".join(best_moves_san),

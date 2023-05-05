@@ -136,12 +136,6 @@ components:
     BoardState:
       type: object
       properties:
-        FEN:
-          type: string
-          description: The current board state in Forsyth-Edwards Notation (FEN)
-        move_history:
-          type: string
-          description: The move history in SAN format, paired by white and black moves
         game_over:
           type: boolean
           description: Indicates if the game is over
