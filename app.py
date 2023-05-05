@@ -177,7 +177,7 @@ def get_board_state(conversation_id_hash, game_state: GameState):
     else:
         instructions = (
             f"It's the user's turn to move. The user is playing {turn}. Show the board to the user using the markdown from the display field. Prompt the user to make their move using SAN notation"
-            + " (e.g. e4, Nf3, etc). Use the make move API to make the move for the user and the show the board to the user using the markdown from the display field."
+            + " (e.g. e4, Nf3, etc). Use the make move API to make the move for the user."
         )
 
     return {
