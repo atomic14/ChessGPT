@@ -109,7 +109,7 @@ def load_board(conversation_id_hash, max_move=None) -> GameState:
     item = result.get("Item")
     if not item:
         logging.error("No game found for conversation: " + conversation_id_hash)
-        return None, None, None
+        return None
 
     moves_string = item.get("moves")
     if not moves_string:
@@ -197,6 +197,20 @@ def get_levels():
 def new_game():
     conversation_id = request.headers.get("Openai-Conversation-Id")
     conversation_id_hash = get_conversation_id_hash(conversation_id)
+
+    # check to see if there's already a game in progress
+    game_state = load_board(conversation_id_hash)
+    if game_state:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "There's already a game associated with this conversation. Please create a new conversation to start a new game.",
+                    "board_state": get_board_state(conversation_id_hash, game_state),
+                }
+            ),
+            400,
+        )
 
     data = request.get_json()
     if "assistant_color" not in data:
