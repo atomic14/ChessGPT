@@ -276,7 +276,7 @@ def new_game():
     board = chess.Board()
     game_state = GameState(board, [], assistant_color, elo)
     save_board(conversation_id_hash, game_state)
-    logging.debug("New game started.")
+    logging.debug(f"New game started. Level {elo} assistant color {assistant_color}")
     return jsonify(get_board_state(conversation_id_hash, game_state))
 
 
@@ -383,10 +383,28 @@ def serve_openai_yaml():
         return Response(data, mimetype="text/yaml")
 
 
+@app.route("/")
+@app.route("/index.html")
+def index():
+    return send_from_directory("static", "index.html")
+
+
+@app.route("/site.webmanifest")
+def site_manifest():
+    return send_from_directory("static", "site.webmanifest")
+
+
+@app.route("/images/<path:path>")
+def send_image(path):
+    response = send_from_directory("static/images", path)
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return response
+
+
 @app.route("/logo.png")
 def serve_logo():
     # cache for 24 hours
-    response = send_from_directory(".", "logo.png")
+    response = send_from_directory("static", "logo.png")
     response.headers["Cache-Control"] = "public, max-age=86400"
     return response
 
@@ -394,7 +412,7 @@ def serve_logo():
 @app.route("/robots.txt")
 def serve_robots():
     # cache for 24 hours
-    response = send_from_directory(".", "robots.txt")
+    response = send_from_directory("static", "robots.txt")
     response.headers["Cache-Control"] = "public, max-age=86400"
     return response
 
