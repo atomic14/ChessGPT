@@ -41,6 +41,7 @@ provider:
 functions:
   api:
     handler: wsgi_handler.handler
+    memorySize: 2048
     events:
       - httpApi: "*"
 
