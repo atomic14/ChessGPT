@@ -8,6 +8,7 @@ import chess.svg
 import chess.pgn
 import logging
 import hashlib
+import datetime
 from flask_cors import CORS
 from stockfish import Stockfish
 
@@ -19,7 +20,8 @@ logging.basicConfig(level=logging.DEBUG)
 
 # create a named tuple to hold the game state
 GameState = collections.namedtuple(
-    "GameState", ["board", "move_history", "assistant_color", "elo"]
+    "GameState",
+    ["board", "move_history", "assistant_color", "elo", "created", "updated"],
 )
 
 if os.environ.get("IS_OFFLINE") == "True":
@@ -96,6 +98,8 @@ def save_board(conversation_id_hash: str, game_state: GameState):
             "moves": ",".join(game_state.move_history),
             "assistant_color": game_state.assistant_color,
             "elo": str(game_state.elo),
+            "created": str(game_state.created),
+            "updated": str(game_state.updated),
         },
     )
 
@@ -125,7 +129,10 @@ def load_board(conversation_id_hash, max_move=None) -> GameState:
         board.push_san(move)
     assistant_color = item.get("assistant_color")
     elo = int(item.get("elo", "2000"))
-    return GameState(board, moves, assistant_color, elo)
+    now = datetime.datetime.utcnow().timestamp()
+    created = int(item.get("created", now))
+    updated = int(item.get("updated", now))
+    return GameState(board, moves, assistant_color, elo, created, updated)
 
 
 # get the list of legal moves in SAN format
@@ -274,7 +281,8 @@ def new_game():
         )
     # blank board
     board = chess.Board()
-    game_state = GameState(board, [], assistant_color, elo)
+    now = int(datetime.datetime.utcnow().timestamp())
+    game_state = GameState(board, [], assistant_color, elo, now, now)
     save_board(conversation_id_hash, game_state)
     logging.debug(f"New game started. Level {elo} assistant color {assistant_color}")
     return jsonify(get_board_state(conversation_id_hash, game_state))
