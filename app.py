@@ -144,7 +144,11 @@ def get_legal_move_list(board):
 def get_markdown(conversation_id_hash, move_history):
     # create an MD5 hash of the board FEN
     # this will be used to bust the browser cache
-    markdown = f"![Board]({request.scheme}://{request.host}/board.svg?cid={conversation_id_hash}&m={len(move_history)})"
+    if move_history:
+        m = len(move_history)
+    else:
+        m = 0
+    markdown = f"![Board]({request.scheme}://{request.host}/board.svg?cid={conversation_id_hash}&m={m})"
     return markdown
 
 
@@ -165,8 +169,6 @@ def get_board_state(conversation_id_hash, game_state: GameState):
         turn = "white"
     else:
         turn = "black"
-    # pair the moves from white and black
-    moves = format_moves(game_state.move_history)
     # get the best moves for the assistant or user (give the user grandmaster moves!)
     best_move_elo = game_state.elo if turn == game_state.assistant_color else 3000
     stockfish = get_stockfish(best_move_elo, game_state.board.fen())
@@ -357,9 +359,29 @@ def get_move_history():
 def board():
     # get the query param cid - this is the conversation ID
     conversation_id_hash = request.args.get("cid")
+    if conversation_id_hash is None:
+        return (
+            jsonify({"success": False, "message": "Missing cid query parameter"}),
+            400,
+        )
     move = request.args.get("m")
-    move = int(move)
-    game_state = load_board(conversation_id_hash, move)
+    if move is None:
+        return (
+            jsonify({"success": False, "message": "Missing m query parameter"}),
+            400,
+        )
+    # check that the move is a number
+    try:
+        int(move)
+    except ValueError:
+        return (
+            jsonify({"success": False, "message": "Invalid m query parameter"}),
+            400,
+        )
+
+    game_state = load_board(conversation_id_hash, int(move))
+    if not game_state:
+        return jsonify({"success": False, "message": "No game found"}), 404
 
     svg_data = chess.svg.board(board=game_state.board, size=400)
     response = Response(svg_data, mimetype="image/svg+xml")
