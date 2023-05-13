@@ -1,3 +1,5 @@
+org: atomic14
+app: chatgpt-chess-plugin
 service: chatgpt-chess-plugin
 
 frameworkVersion: "3"
