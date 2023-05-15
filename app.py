@@ -410,7 +410,9 @@ def serve_openai_yaml():
         data = data.replace("PLUGIN_HOSTNAME", request.host)
         data = data.replace("PROTOCOL", request.scheme)
         # return the modified file
-        return Response(data, mimetype="text/yaml")
+        response = Response(data, mimetype="text/yaml")
+        response.headers["Cache-Control"] = "public, max-age=86400"
+        return response
 
 
 @app.route("/")
