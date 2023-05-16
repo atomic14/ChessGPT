@@ -11,6 +11,7 @@ import hashlib
 import datetime
 from flask_cors import CORS
 from stockfish import Stockfish
+import base64
 
 app = Flask(__name__)
 CORS(app)
@@ -64,6 +65,61 @@ LEVELS = [
         "description": "The assistant will play at an Elo rating of 3000. This is a good level for grandmasters.",
     },
 ]
+
+HUFFMAN_DICT = {
+    ".": "1",
+    "P": "010",
+    "p": "001",
+    "B": "00010",
+    "N": "00000",
+    "R": "01110",
+    "b": "00011",
+    "n": "00001",
+    "r": "01101",
+    "K": "011110",
+    "Q": "011001",
+    "k": "011111",
+    "q": "011000",
+}
+
+REVERSE_HUFFMAN_DICT = {v: k for k, v in HUFFMAN_DICT.items()}
+
+
+def string_to_bytes(s):
+    return int(s, 2).to_bytes((len(s) + 7) // 8, byteorder="big")
+
+
+def bytes_to_string(b):
+    return bin(int.from_bytes(b, byteorder="big"))[2:].zfill(len(b) * 8)
+
+
+def encode_board(board):
+    board_string = str(board).replace(" ", "").replace("\n", "")
+    binary_string = "".join(HUFFMAN_DICT[char] for char in board_string)
+    # Add padding to the end of the binary string
+    padded_binary_string = binary_string.ljust((len(binary_string) + 7) // 8 * 8, "0")
+    b = string_to_bytes(padded_binary_string)
+    return base64.urlsafe_b64encode(b).decode()
+
+
+def decode_board(encoded_board):
+    code = ""
+    position = 0
+    board = chess.Board()
+    board.clear()
+    for bit in bytes_to_string(base64.urlsafe_b64decode(encoded_board.encode())):
+        code += bit
+        if code in REVERSE_HUFFMAN_DICT:
+            piece = REVERSE_HUFFMAN_DICT[code]
+            if piece != ".":
+                x = position % 8
+                y = 7 - position // 8
+                board.set_piece_at(y * 8 + x, chess.Piece.from_symbol(piece))
+            position += 1
+            code = ""
+            if position == 64:
+                break
+    return board
 
 
 def get_conversation_id_hash(conversation_id):
@@ -141,14 +197,12 @@ def get_legal_move_list(board):
     return legal_moves
 
 
-def get_markdown(conversation_id_hash, move_history):
-    # create an MD5 hash of the board FEN
-    # this will be used to bust the browser cache
-    if move_history:
-        m = len(move_history)
-    else:
-        m = 0
-    markdown = f"![Board]({request.scheme}://{request.host}/board.svg?cid={conversation_id_hash}&m={m})"
+def get_markdown(board):
+    # encode the board as a base64 string
+    encoded_board = encode_board(board)
+    markdown = (
+        f"![Board]({request.scheme}://{request.host}/board.svg?b={encoded_board})"
+    )
     return markdown
 
 
@@ -191,7 +245,7 @@ def get_board_state(conversation_id_hash, game_state: GameState):
 
     return {
         "game_over": game_state.board.is_game_over(),
-        "display": get_markdown(conversation_id_hash, game_state.move_history),
+        "display": get_markdown(game_state.board),
         "best_moves": ", ".join(best_moves_san),
         "EXTRA_INFORMATION_TO_ASSISTANT": instructions,
     }
@@ -357,33 +411,39 @@ def get_move_history():
 
 @app.route("/board.svg", methods=["GET"])
 def board():
-    # get the query param cid - this is the conversation ID
-    conversation_id_hash = request.args.get("cid")
-    if conversation_id_hash is None:
-        return (
-            jsonify({"success": False, "message": "Missing cid query parameter"}),
-            400,
-        )
-    move = request.args.get("m")
-    if move is None:
-        return (
-            jsonify({"success": False, "message": "Missing m query parameter"}),
-            400,
-        )
-    # check that the move is a number
-    try:
-        int(move)
-    except ValueError:
-        return (
-            jsonify({"success": False, "message": "Invalid m query parameter"}),
-            400,
-        )
+    # do we have the b parameter?
+    b = request.args.get("b")
+    if b is not None:
+        board = decode_board(b)
+    else:
+        # get the query param cid - this is the conversation ID
+        conversation_id_hash = request.args.get("cid")
+        if conversation_id_hash is None:
+            return (
+                jsonify({"success": False, "message": "Missing cid query parameter"}),
+                400,
+            )
+        move = request.args.get("m")
+        if move is None:
+            return (
+                jsonify({"success": False, "message": "Missing m query parameter"}),
+                400,
+            )
+        # check that the move is a number
+        try:
+            int(move)
+        except ValueError:
+            return (
+                jsonify({"success": False, "message": "Invalid m query parameter"}),
+                400,
+            )
 
-    game_state = load_board(conversation_id_hash, int(move))
-    if not game_state:
-        return jsonify({"success": False, "message": "No game found"}), 404
+        game_state = load_board(conversation_id_hash, int(move))
+        if not game_state:
+            return jsonify({"success": False, "message": "No game found"}), 404
+        board = game_state.board
 
-    svg_data = chess.svg.board(board=game_state.board, size=400)
+    svg_data = chess.svg.board(board=board, size=400)
     response = Response(svg_data, mimetype="image/svg+xml")
     response.headers["Cache-Control"] = "public, max-age=86400"
     return response
