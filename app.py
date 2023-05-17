@@ -16,7 +16,7 @@ import base64
 app = Flask(__name__)
 CORS(app)
 
-logging.basicConfig(level=logging.DEBUG)
+app.logger.setLevel(logging.INFO)
 
 
 def exclude_from_log(route_func):
@@ -193,7 +193,7 @@ def load_board(conversation_id_hash, max_move=None) -> GameState:
     )
     item = result.get("Item")
     if not item:
-        logging.error("No game found for conversation: " + conversation_id_hash)
+        app.logger.error("No game found for conversation: " + conversation_id_hash)
         return None
 
     moves_string = item.get("moves")
@@ -201,7 +201,7 @@ def load_board(conversation_id_hash, max_move=None) -> GameState:
         moves = []
     else:
         moves = moves_string.split(",")
-    logging.debug("Moves: " + str(moves))
+    app.logger.debug("Moves: " + str(moves))
     board = chess.Board()
     if max_move is None:
         max_move = len(moves)
@@ -228,8 +228,8 @@ def get_markdown(conversation_id_hash, game_state: GameState):
         # check the results can be decoded
         decode_board(encoded_board)
     except Exception as e:
-        logging.error("Error decoding board: " + str(e))
-        logging.error("Encoded board: " + encoded_board)
+        app.logger.error("Error decoding board: " + str(e))
+        app.logger.error("Encoded board: " + encoded_board)
         # fallback to the old method
         if game_state.move_history:
             m = len(game_state.move_history)
@@ -241,7 +241,7 @@ def get_markdown(conversation_id_hash, game_state: GameState):
     markdown = (
         f"![Board]({request.scheme}://{request.host}/board.svg?b={encoded_board})"
     )
-    logging.info("Markdown: " + markdown)
+    app.logger.info("Markdown: " + markdown)
     return markdown
 
 
@@ -379,7 +379,7 @@ def new_game():
     now = int(datetime.datetime.utcnow().timestamp())
     game_state = GameState(board, [], assistant_color, elo, now, now)
     save_board(conversation_id_hash, game_state)
-    logging.debug(f"New game started. Level {elo} assistant color {assistant_color}")
+    app.logger.info(f"New game started. Level {elo} assistant color {assistant_color}")
     return jsonify(get_board_state(conversation_id_hash, game_state))
 
 
@@ -409,7 +409,7 @@ def make_move():
             save_board(conversation_id_hash, game_state)
             return jsonify(get_board_state(conversation_id_hash, game_state))
         else:
-            logging.error("Illegal move: " + move)
+            app.logger.error("Illegal move: " + move)
             board_state = get_board_state(conversation_id_hash, game_state)
             board_state["error_message"] = "Illegal move - make sure you use SAN"
             return (
@@ -417,8 +417,7 @@ def make_move():
                 400,
             )
     except ValueError as e:
-        logging.error("Invalid move format: " + move)
-        logging.error(e)
+        app.logger.error("Invalid move format: " + move)
         board_state = get_board_state(conversation_id_hash, game_state)
         board_state["error_message"] = "Invalid move format - use SAN"
         return (
@@ -453,7 +452,7 @@ def board():
     # do we have the b parameter?
     b = request.args.get("b")
     if b is not None:
-        logging.info("Decoding board from query param", b)
+        app.logger.info(f"Decoding board from query param {b}")
         board = decode_board(b)
     else:
         # get the query param cid - this is the conversation ID
