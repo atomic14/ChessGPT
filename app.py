@@ -19,6 +19,30 @@ CORS(app)
 logging.basicConfig(level=logging.DEBUG)
 
 
+def exclude_from_log(route_func):
+    route_func._exclude_from_log = True
+    return route_func
+
+
+@app.before_request
+def log_request_info():
+    if not getattr(request.endpoint, "_exclude_from_log", False):
+        # dump the query params and body
+        app.logger.info("Request: %s", request.url)
+        app.logger.info("Body: %s", request.get_data())
+
+
+@app.after_request
+def log_response_info(response):
+    # Only log if the response is JSON
+    if (
+        not getattr(request.endpoint, "_exclude_from_log", False)
+        and response.mimetype == "application/json"
+    ):
+        app.logger.info("Response: %s", response.get_data(as_text=True))
+    return response
+
+
 # create a named tuple to hold the game state
 GameState = collections.namedtuple(
     "GameState",
@@ -138,6 +162,7 @@ def get_stockfish(elo, fen):
     stockfish = Stockfish(get_stockfish_path())
     stockfish.set_elo_rating(elo)
     stockfish.set_fen_position(fen)
+    stockfish.set_elo_rating(elo)
     return stockfish
 
 
@@ -180,7 +205,6 @@ def load_board(conversation_id_hash, max_move=None) -> GameState:
     board = chess.Board()
     if max_move is None:
         max_move = len(moves)
-    print("Max move: " + str(max_move))
     for move in moves[:max_move]:
         board.push_san(move)
     assistant_color = item.get("assistant_color")
@@ -197,12 +221,27 @@ def get_legal_move_list(board):
     return legal_moves
 
 
-def get_markdown(board):
+def get_markdown(conversation_id_hash, game_state: GameState):
     # encode the board as a base64 string
-    encoded_board = encode_board(board)
+    encoded_board = encode_board(game_state.board)
+    try:
+        # check the results can be decoded
+        decode_board(encoded_board)
+    except Exception as e:
+        logging.error("Error decoding board: " + str(e))
+        logging.error("Encoded board: " + encoded_board)
+        # fallback to the old method
+        if game_state.move_history:
+            m = len(game_state.move_history)
+        else:
+            m = 0
+        markdown = f"![Board]({request.scheme}://{request.host}/board.svg?cid={conversation_id_hash}&m={m})"
+        return markdown
+    # encoding worked ok, so use the new method
     markdown = (
         f"![Board]({request.scheme}://{request.host}/board.svg?b={encoded_board})"
     )
+    logging.info("Markdown: " + markdown)
     return markdown
 
 
@@ -245,7 +284,7 @@ def get_board_state(conversation_id_hash, game_state: GameState):
 
     return {
         "game_over": game_state.board.is_game_over(),
-        "display": get_markdown(game_state.board),
+        "display": get_markdown(conversation_id_hash, game_state),
         "best_moves": ", ".join(best_moves_san),
         "EXTRA_INFORMATION_TO_ASSISTANT": instructions,
     }
@@ -414,6 +453,7 @@ def board():
     # do we have the b parameter?
     b = request.args.get("b")
     if b is not None:
+        logging.info("Decoding board from query param", b)
         board = decode_board(b)
     else:
         # get the query param cid - this is the conversation ID
@@ -450,6 +490,7 @@ def board():
 
 
 @app.route("/.well-known/ai-plugin.json")
+@exclude_from_log
 def serve_ai_plugin():
     # read in the file
     with open(".well-known/ai-plugin.json", "r") as f:
@@ -462,6 +503,7 @@ def serve_ai_plugin():
 
 
 @app.route("/openapi.yaml")
+@exclude_from_log
 def serve_openai_yaml():
     # read in the file
     with open("openapi.yaml", "r") as f:
@@ -477,16 +519,19 @@ def serve_openai_yaml():
 
 @app.route("/")
 @app.route("/index.html")
+@exclude_from_log
 def index():
     return send_from_directory("static", "index.html")
 
 
 @app.route("/site.webmanifest")
+@exclude_from_log
 def site_manifest():
     return send_from_directory("static", "site.webmanifest")
 
 
 @app.route("/images/<path:path>")
+@exclude_from_log
 def send_image(path):
     response = send_from_directory("static/images", path)
     response.headers["Cache-Control"] = "public, max-age=86400"
@@ -494,6 +539,7 @@ def send_image(path):
 
 
 @app.route("/logo.png")
+@exclude_from_log
 def serve_logo():
     # cache for 24 hours
     response = send_from_directory("static", "logo.png")
@@ -502,6 +548,7 @@ def serve_logo():
 
 
 @app.route("/robots.txt")
+@exclude_from_log
 def serve_robots():
     # cache for 24 hours
     response = send_from_directory("static", "robots.txt")
