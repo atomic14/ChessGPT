@@ -287,7 +287,10 @@ def get_board_state(conversation_id_hash, game_state: GameState):
     stockfish = get_stockfish(best_move_elo, game_state.board.fen())
     if turn == game_state.assistant_color:
         best_moves = get_best_move(stockfish)
-        best_moves_san = [game_state.board.san(chess.Move.from_uci(best_moves))]
+        if best_moves:
+            best_moves_san = [game_state.board.san(chess.Move.from_uci(best_moves))]
+        else:
+            best_moves_san = []
     else:
         best_moves = get_best_moves(stockfish)
         best_moves_san = [
@@ -297,15 +300,21 @@ def get_board_state(conversation_id_hash, game_state: GameState):
 
     # create the instructions for the assistant
     if turn == game_state.assistant_color:
-        instructions = (
-            f"It's the assistant's turn. The assistant is playing {turn}. Pick a move from the following best moves for {turn}: {', '.join(best_moves_san)}. "
-            + "Use the make move API to make the move for the assistant and the show the board to the user using the markdown from the display field."
-        )
+        if game_state.board.is_game_over():
+            instructions = "The game is over. Show the board to the user using the markdown from the display field. The user won!"
+        else:
+            instructions = (
+                f"It's the assistant's turn. The assistant is playing {turn}. Pick a move from the following best moves for {turn}: {', '.join(best_moves_san)}. "
+                + "Use the make move API to make the move for the assistant and the show the board to the user using the markdown from the display field."
+            )
     else:
-        instructions = (
-            f"It's the user's turn to move. The user is playing {turn}. Show the board to the user using the markdown from the display field. Prompt the user to make their move using SAN notation"
-            + " (e.g. e4, Nf3, etc). Use the make move API to make the move for the user."
-        )
+        if game_state.board.is_game_over():
+            instructions = "The game is over. Show the board to the user using the markdown from the display field. The assistant won!"
+        else:
+            instructions = (
+                f"It's the user's turn to move. The user is playing {turn}. Show the board to the user using the markdown from the display field. Prompt the user to make their move using SAN notation"
+                + " (e.g. e4, Nf3, etc). Use the make move API to make the move for the user."
+            )
 
     return {
         "game_over": game_state.board.is_game_over(),
