@@ -7,6 +7,7 @@ import chess
 import chess.svg
 import chess.pgn
 import logging
+from logging.handlers import SysLogHandler
 import hashlib
 import datetime
 from flask_cors import CORS
@@ -19,6 +20,22 @@ CORS(app)
 app.logger.setLevel(logging.INFO)
 
 
+papertrail_app_name = os.environ.get("PAPERTRAIL_APP_NAME")
+# set the name of the app for papertrail
+if papertrail_app_name:
+    app.logger.name = papertrail_app_name
+    # create a syslog handler to log to papertrail - logs6.papertrailapp.com:47875
+    syslog = SysLogHandler(address=("logs6.papertrailapp.com", 47875))
+    syslog.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+        f"{papertrail_app_name}: chess %(levelname)s %(message)s"
+    )
+    syslog.setFormatter(formatter)
+    app.logger.addHandler(syslog)
+
+app.logger.info("Starting app")
+
+
 def exclude_from_log(route_func):
     route_func._exclude_from_log = True
     return route_func
@@ -29,17 +46,17 @@ def log_request_info():
     if not getattr(request.endpoint, "_exclude_from_log", False):
         # dump the query params and body
         app.logger.info("Request: %s", request.url)
-        app.logger.info("Body: %s", request.get_data())
+        # app.logger.info("Body: %s", request.get_data())
 
 
 @app.after_request
 def log_response_info(response):
-    # Only log if the response is JSON
-    if (
-        not getattr(request.endpoint, "_exclude_from_log", False)
-        and response.mimetype == "application/json"
-    ):
-        app.logger.info("Response: %s", response.get_data(as_text=True))
+    # # Only log if the response is JSON
+    # if (
+    #     not getattr(request.endpoint, "_exclude_from_log", False)
+    #     and response.mimetype == "application/json"
+    # ):
+    #     app.logger.info("Response: %s", response.get_data(as_text=True))
     return response
 
 
@@ -65,8 +82,8 @@ GAMES_TABLE = os.environ["GAMES_TABLE"]
 LEVELS = [
     {
         "name": "Beginner",
-        "elo": 1000,
-        "description": "The assistant will play at an Elo rating of 1000. This is a good level for beginners.",
+        "elo": 1350,
+        "description": "The assistant will play at an Elo rating of 1350. This is a good level for beginners.",
     },
     {
         "name": "Intermediate",
@@ -85,8 +102,8 @@ LEVELS = [
     },
     {
         "name": "Grandmaster",
-        "elo": 3000,
-        "description": "The assistant will play at an Elo rating of 3000. This is a good level for grandmasters.",
+        "elo": 2850,
+        "description": "The assistant will play at an Elo rating of 2850. This is a good level for grandmasters.",
     },
 ]
 
@@ -162,12 +179,15 @@ def get_stockfish(elo, fen):
     stockfish = Stockfish(get_stockfish_path())
     stockfish.set_elo_rating(elo)
     stockfish.set_fen_position(fen)
-    stockfish.set_elo_rating(elo)
     return stockfish
 
 
 def get_best_moves(stockfish, num=5):
     return stockfish.get_top_moves(num)
+
+
+def get_best_move(stockfish):
+    return stockfish.get_best_move()
 
 
 # save the board state to dynamoDB - we'll just save the move history
@@ -193,7 +213,6 @@ def load_board(conversation_id_hash, max_move=None) -> GameState:
     )
     item = result.get("Item")
     if not item:
-        app.logger.error("No game found for conversation: " + conversation_id_hash)
         return None
 
     moves_string = item.get("moves")
@@ -209,6 +228,7 @@ def load_board(conversation_id_hash, max_move=None) -> GameState:
         board.push_san(move)
     assistant_color = item.get("assistant_color")
     elo = int(item.get("elo", "2000"))
+    elo = max(1350, min(2850, elo))
     now = datetime.datetime.utcnow().timestamp()
     created = int(item.get("created", now))
     updated = int(item.get("updated", now))
@@ -263,13 +283,18 @@ def get_board_state(conversation_id_hash, game_state: GameState):
     else:
         turn = "black"
     # get the best moves for the assistant or user (give the user grandmaster moves!)
-    best_move_elo = game_state.elo if turn == game_state.assistant_color else 3000
+    best_move_elo = game_state.elo if turn == game_state.assistant_color else 2850
     stockfish = get_stockfish(best_move_elo, game_state.board.fen())
-    best_moves = get_best_moves(stockfish)
-    # convert the best moves to SAN
-    best_moves_san = [
-        game_state.board.san(chess.Move.from_uci(move["Move"])) for move in best_moves
-    ]
+    if turn == game_state.assistant_color:
+        best_moves = get_best_move(stockfish)
+        best_moves_san = [game_state.board.san(chess.Move.from_uci(best_moves))]
+    else:
+        best_moves = get_best_moves(stockfish)
+        best_moves_san = [
+            game_state.board.san(chess.Move.from_uci(move["Move"]))
+            for move in best_moves
+        ]
+
     # create the instructions for the assistant
     if turn == game_state.assistant_color:
         instructions = (
@@ -330,7 +355,7 @@ def new_game():
             jsonify(
                 {
                     "success": False,
-                    "message": "Missing elo in request data. Please specify a number between 1000 and 3000",
+                    "message": "Missing elo in request data. Please specify a number between 1350 and 2850",
                     "levels": LEVELS,
                 }
             ),
@@ -344,19 +369,19 @@ def new_game():
             jsonify(
                 {
                     "success": False,
-                    "message": "Invalid elo in request data. Please specify a number between 1000 and 3000",
+                    "message": "Invalid elo in request data. Please specify a number between 1350 and 2850",
                     "levels": LEVELS,
                 }
             ),
             400,
         )
     # check the elo is valid
-    if elo < 0 or elo > 3000:
+    if elo < 1350 or elo > 2850:
         return (
             jsonify(
                 {
                     "success": False,
-                    "message": "Invalid elo in request data. Please specify a number between 0 and 3000",
+                    "message": "Invalid elo in request data. Please specify a number between 1350 and 2850",
                     "levels": LEVELS,
                 }
             ),
@@ -409,7 +434,6 @@ def make_move():
             save_board(conversation_id_hash, game_state)
             return jsonify(get_board_state(conversation_id_hash, game_state))
         else:
-            app.logger.error("Illegal move: " + move)
             board_state = get_board_state(conversation_id_hash, game_state)
             board_state["error_message"] = "Illegal move - make sure you use SAN"
             return (
@@ -555,6 +579,21 @@ def serve_robots():
     return response
 
 
+@app.route("/favicon.ico")
+@exclude_from_log
+def serve_favicon():
+    # cache for 24 hours
+    response = send_from_directory("static/images/", "favicon.ico")
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return response
+
+
 @app.errorhandler(404)
 def resource_not_found(e):
     return make_response(jsonify(error="Not found!"), 404)
+
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    app.logger.error(e)
+    return make_response(jsonify(error="Internal Server Error!"), 500)

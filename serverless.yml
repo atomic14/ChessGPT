@@ -20,6 +20,9 @@ custom:
       migrate: true
       seed: true
       convertEmptyValues: true
+  PAPERTRAIL_APP_NAME:
+    dev: chess-gpt-dev
+    prod: chess-gpt-prod
 
 provider:
   name: aws
@@ -43,6 +46,8 @@ provider:
 functions:
   api:
     handler: wsgi_handler.handler
+    environment:
+      PAPERTRAIL_APP_NAME: ${self:custom.PAPERTRAIL_APP_NAME.${sls:stage}}
     memorySize: 4096
     events:
       - httpApi: "*"
