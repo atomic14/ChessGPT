@@ -1,5 +1,6 @@
 from typing import Any, Callable, Dict, Optional, Union
 from werkzeug.local import LocalProxy
+from werkzeug import Request
 from logging import Logger
 from werkzeug.datastructures import EnvironHeaders
 
@@ -27,7 +28,10 @@ class _request_obj:
         cls, force: bool = False, silent: bool = False, cache: bool = True
     ) -> Optional[Dict[str, Any]]: ...
 
-request: LocalProxy = LocalProxy(_request_obj)
+class RequestLocalProxy(LocalProxy, _request_obj):
+    pass
+
+request: RequestLocalProxy = RequestLocalProxy(_request_obj)
 
 class Response:
     status_code: int

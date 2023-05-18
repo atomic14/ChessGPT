@@ -110,22 +110,78 @@ def get_game_over_reason(logger, game_state: GameState, isUsersTurn: bool):
     if board.is_game_over():
         logger.debug("Game over!")
         outcome = board.outcome()
+
+        termination_reasons = {
+            chess.Termination.CHECKMATE: "The assistant won by Checkmate!"
+            if isUsersTurn
+            else "The user lost to Checkmate!",
+            chess.Termination.STALEMATE: "Game ended in a stalemate!",
+            chess.Termination.THREEFOLD_REPETITION: "Game ended in a threefold repetition!",
+            chess.Termination.FIVEFOLD_REPETITION: "Game ended in a fivefold repetition!",
+            chess.Termination.INSUFFICIENT_MATERIAL: "Game ended in insufficient material (K vs. K, K vs. KB, or K vs. KN)",
+        }
+
         if outcome is not None:
-            if outcome.termination == chess.Termination.CHECKMATE:
-                if isUsersTurn:
-                    return "The assistant won by Checkmate!"
-                else:
-                    return "The user lost to Checkmate!"
-            elif outcome.termination == chess.Termination.STALEMATE:
-                return "Game ended in a stalemate!"
-            elif outcome.termination == chess.Termination.THREEFOLD_REPETITION:
-                return "Game ended in a threefold repetition!"
-            elif outcome.termination == chess.Termination.FIVEFOLD_REPETITION:
-                return "Game ended in a fivefold repetition!"
-            elif outcome.termination == chess.Termination.INSUFFICIENT_MATERIAL:
-                return "Game ended in insufficient material (K vs. K, K vs. KB, or K vs. KN)"
-            else:
-                return "Game ended in an unspecified way!"
+            return termination_reasons.get(
+                outcome.termination, "Game ended in an unspecified way!"
+            )
+
+
+def get_board_state_for_assistant(
+    logger, conversation_id_hash, game_state: GameState, turn, scheme, host
+):
+    stockfish = get_stockfish(game_state.elo, game_state.board.fen())
+    best_moves = get_best_move(stockfish)
+    if best_moves:
+        best_moves_san = [game_state.board.san(chess.Move.from_uci(best_moves))]
+    else:
+        best_moves_san = []
+    logger.debug("Best moves for assistant: " + str(best_moves_san))
+    instructions = (
+        f"It's the assistant's turn. The assistant is playing {turn}. Pick a move from the following best moves for {turn}: {', '.join(best_moves_san)}. "  # noqa: E501
+        + "Use the make move API to make the move for the assistant and the show the board to the user using the markdown from the display field."  # noqa: E501
+    )
+    return {
+        "game_over": False,
+        "display": get_markdown(logger, conversation_id_hash, game_state, scheme, host),
+        "best_moves": ", ".join(best_moves_san),
+        "EXTRA_INFORMATION_TO_ASSISTANT": instructions,
+    }
+
+
+def get_board_state_for_user(
+    logger, conversation_id_hash, game_state: GameState, turn, scheme, host
+):
+    stockfish = get_stockfish(2850, game_state.board.fen())
+    best_moves = get_best_moves(stockfish)
+    best_moves_san = [
+        game_state.board.san(chess.Move.from_uci(move["Move"])) for move in best_moves
+    ]
+    instructions = (
+        f"It's the user's turn to move. The user is playing {turn}. Show the board to the user using the markdown from the display field. Prompt the user to make their move using SAN notation"  # noqa: E501
+        + " (e.g. e4, Nf3, etc). Use the make move API to make the move for the user."
+    )
+    return {
+        "game_over": False,
+        "display": get_markdown(logger, conversation_id_hash, game_state, scheme, host),
+        "best_moves": ", ".join(best_moves_san),
+        "EXTRA_INFORMATION_TO_ASSISTANT": instructions,
+    }
+
+
+def get_board_state_for_game_over(
+    logger, conversation_id_hash, game_state: GameState, turn, scheme, host
+):
+    game_over_reason = get_game_over_reason(
+        logger, game_state, turn != game_state.assistant_color
+    )
+    instructions = f"Game over! {game_over_reason}"
+    return {
+        "game_over": True,
+        "display": get_markdown(logger, conversation_id_hash, game_state, scheme, host),
+        "best_moves": "",
+        "EXTRA_INFORMATION_TO_ASSISTANT": instructions,
+    }
 
 
 def get_board_state(logger, conversation_id_hash, game_state: GameState, scheme, host):
@@ -136,45 +192,14 @@ def get_board_state(logger, conversation_id_hash, game_state: GameState, scheme,
         turn = "black"
     # check for game over
     if game_state.board.is_game_over():
-        game_over_reason = get_game_over_reason(
-            logger, game_state, turn != game_state.assistant_color
+        return get_board_state_for_game_over(
+            logger, conversation_id_hash, game_state, turn, scheme, host
         )
-        instructions = f"Game over! {game_over_reason}"
-        # no legal moves
-        best_moves_san = []
+    if turn == game_state.assistant_color:
+        return get_board_state_for_assistant(
+            logger, conversation_id_hash, game_state, turn, scheme, host
+        )
     else:
-        # get the best moves for the assistant or user (give the user grandmaster moves!)
-        best_move_elo = game_state.elo if turn == game_state.assistant_color else 2850
-        stockfish = get_stockfish(best_move_elo, game_state.board.fen())
-        if turn == game_state.assistant_color:
-            best_moves = get_best_move(stockfish)
-            if best_moves:
-                best_moves_san = [game_state.board.san(chess.Move.from_uci(best_moves))]
-            else:
-                best_moves_san = []
-        else:
-            best_moves = get_best_moves(stockfish)
-            best_moves_san = [
-                game_state.board.san(chess.Move.from_uci(move["Move"]))
-                for move in best_moves
-            ]
-
-        # create the instructions for the assistant
-        if turn == game_state.assistant_color:
-            instructions = (
-                f"It's the assistant's turn. The assistant is playing {turn}. Pick a move from the following best moves for {turn}: {', '.join(best_moves_san)}. "  # noqa: E501
-                + "Use the make move API to make the move for the assistant and the show the board to the user using the markdown from the display field."  # noqa: E501
-            )
-        else:
-            instructions = (
-                f"It's the user's turn to move. The user is playing {turn}. Show the board to the user using the markdown from the display field. Prompt the user to make their move using SAN notation"  # noqa: E501
-                + " (e.g. e4, Nf3, etc). Use the make move API to make the move for the user."
-            )
-
-    logger.debug("Instructions: " + instructions)
-    return {
-        "game_over": game_state.board.is_game_over(),
-        "display": get_markdown(logger, conversation_id_hash, game_state, scheme, host),
-        "best_moves": ", ".join(best_moves_san),
-        "EXTRA_INFORMATION_TO_ASSISTANT": instructions,
-    }
+        return get_board_state_for_user(
+            logger, conversation_id_hash, game_state, turn, scheme, host
+        )

@@ -5,7 +5,6 @@ from flask import Flask
 
 # import your register_routes function
 from chessgpt.routes.board_svg import board
-from chessgpt.utils.openai import get_conversation_id_hash
 
 
 @pytest.fixture
