@@ -1,3 +1,5 @@
+[![Python test](https://github.com/atomic14/ChessGPT/actions/workflows/test.yml/badge.svg)](https://github.com/atomic14/ChessGPT/actions/workflows/test.yml)
+
 # ChessGPT
 
 A plugin for ChatGPT that should let it play a better game of chess.
