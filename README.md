@@ -48,6 +48,20 @@ You can also deploy it to AWS using the Serverless framework.
 AWS_PROFILE=serverless sls deploy   
 ```
 
+## Testing
+
+Install the dev requirements
+
+```
+pip install -r requirements-dev.txt
+```
+
+Now run pytest
+
+```
+pytest
+```
+
 ## How does it work?
 
 We're using the amazing [python-chess](https://python-chess.readthedocs.io/en/v0.2.0/index.html) library to do all the heavy lifting.

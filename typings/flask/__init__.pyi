@@ -20,6 +20,7 @@ def make_response(*args: Any, **kwargs: Any) -> Response: ...  # type: ignore
 class _request_obj:
     method: str
     headers: EnvironHeaders
+    args: Dict[str, str]
 
     @classmethod
     def get_json(

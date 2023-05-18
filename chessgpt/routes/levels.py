@@ -1,5 +1,3 @@
-from app import app
-
 from flask.json import jsonify
 
 
@@ -32,6 +30,7 @@ LEVELS = [
 ]
 
 
-@app.route("/api/levels", methods=["GET"])
-def get_levels():
-    return jsonify(LEVELS)
+def get_levels(app):
+    @app.route("/api/levels", methods=["GET"])
+    def get_levels():
+        return jsonify(LEVELS)

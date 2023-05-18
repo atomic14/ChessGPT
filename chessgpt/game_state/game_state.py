@@ -2,7 +2,6 @@ from collections import namedtuple
 import datetime
 
 import chess
-from app import app
 from chessgpt.compression.huffman import decode_board, encode_board
 from chessgpt.stockfish.stockfish import get_best_move, get_best_moves, get_stockfish
 
@@ -14,9 +13,12 @@ GameState = namedtuple(
 
 
 # save the board state to dynamoDB - we'll just save the move history
-def save_board(conversation_id_hash: str, game_state: GameState):
-    app.dynamodb_client.put_item(
-        TableName=app.GAMES_TABLE,
+def save_board(
+    logger, dynamodb_client, table, conversation_id_hash: str, game_state: GameState
+):
+    logger.debug("Saving board state to dynamoDB")
+    dynamodb_client.put_item(
+        TableName=table,
         Item={
             "conversationId": conversation_id_hash,
             "moves": ",".join(game_state.move_history),
@@ -30,9 +32,12 @@ def save_board(conversation_id_hash: str, game_state: GameState):
 
 # load the board up from dynamoDB - we'll get the move history and then
 # replay the moves to get the board state
-def load_board(conversation_id_hash, max_move=None) -> GameState:
-    result = app.dynamodb_client.get_item(
-        TableName=app.GAMES_TABLE, Key={"conversationId": conversation_id_hash}
+def load_board(
+    logger, dynamodb_client, table, conversation_id_hash, max_move=None
+) -> GameState:
+    logger.debug("Loading board state from dynamoDB")
+    result = dynamodb_client.get_item(
+        TableName=table, Key={"conversationId": conversation_id_hash}
     )
     item = result.get("Item")
     if not item:
@@ -43,7 +48,6 @@ def load_board(conversation_id_hash, max_move=None) -> GameState:
         moves = []
     else:
         moves = moves_string.split(",")
-    app.logger.debug("Moves: " + str(moves))
     board = chess.Board()
     if max_move is None:
         max_move = len(moves)
@@ -59,20 +63,21 @@ def load_board(conversation_id_hash, max_move=None) -> GameState:
 
 
 # get the list of legal moves in SAN format
-def get_legal_move_list(board):
+def get_legal_move_list(logger, board):
     legal_moves = [board.san(move) for move in board.legal_moves]
+    logger.debug("Legal moves: " + str(legal_moves))
     return legal_moves
 
 
-def get_markdown(conversation_id_hash, game_state: GameState, scheme, host):
+def get_markdown(logger, conversation_id_hash, game_state: GameState, scheme, host):
     # encode the board as a base64 string
     encoded_board = encode_board(game_state.board)
     try:
         # check the results can be decoded
         decode_board(encoded_board)
     except Exception as e:
-        app.logger.error("Error decoding board: " + str(e))
-        app.logger.error("Encoded board: " + encoded_board)
+        logger.error("Error decoding board: " + str(e))
+        logger.error("Encoded board: " + encoded_board)
         # fallback to the old method
         if game_state.move_history:
             m = len(game_state.move_history)
@@ -84,11 +89,11 @@ def get_markdown(conversation_id_hash, game_state: GameState, scheme, host):
         return markdown
     # encoding worked ok, so use the new method
     markdown = f"![Board]({scheme}://{host}/board.svg?b={encoded_board})"
-    app.logger.info("Markdown: " + markdown)
+    logger.info("Markdown: " + markdown)
     return markdown
 
 
-def format_moves(move_history):
+def format_moves(logger, move_history):
     # pair the moves from white and black
     moves = []
     for i in range(0, len(move_history), 2):
@@ -96,12 +101,14 @@ def format_moves(move_history):
             moves.append(f"{int(i/2 + 1)}. {move_history[i]} {move_history[i + 1]}")
         else:
             moves.append(f"{int(i/2 + 1)}. {move_history[i]}")
+    logger.debug("Moves: " + str(moves))
     return moves
 
 
-def get_game_over_reason(game_state: GameState, isUsersTurn: bool):
+def get_game_over_reason(logger, game_state: GameState, isUsersTurn: bool):
     board = game_state.board
     if board.is_game_over():
+        logger.debug("Game over!")
         outcome = board.outcome()
         if outcome is not None:
             if outcome.termination == chess.Termination.CHECKMATE:
@@ -121,7 +128,7 @@ def get_game_over_reason(game_state: GameState, isUsersTurn: bool):
                 return "Game ended in an unspecified way!"
 
 
-def get_board_state(conversation_id_hash, game_state: GameState, scheme, host):
+def get_board_state(logger, conversation_id_hash, game_state: GameState, scheme, host):
     # work out who's turn is it from the move_history
     if len(game_state.move_history) % 2 == 0:
         turn = "white"
@@ -130,7 +137,7 @@ def get_board_state(conversation_id_hash, game_state: GameState, scheme, host):
     # check for game over
     if game_state.board.is_game_over():
         game_over_reason = get_game_over_reason(
-            game_state, turn != game_state.assistant_color
+            logger, game_state, turn != game_state.assistant_color
         )
         instructions = f"Game over! {game_over_reason}"
         # no legal moves
@@ -164,9 +171,10 @@ def get_board_state(conversation_id_hash, game_state: GameState, scheme, host):
                 + " (e.g. e4, Nf3, etc). Use the make move API to make the move for the user."
             )
 
+    logger.debug("Instructions: " + instructions)
     return {
         "game_over": game_state.board.is_game_over(),
-        "display": get_markdown(conversation_id_hash, game_state, scheme, host),
+        "display": get_markdown(logger, conversation_id_hash, game_state, scheme, host),
         "best_moves": ", ".join(best_moves_san),
         "EXTRA_INFORMATION_TO_ASSISTANT": instructions,
     }

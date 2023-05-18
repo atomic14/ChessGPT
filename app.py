@@ -1,20 +1,36 @@
 import os
 from flask import Flask, jsonify, make_response
 from flask_cors import CORS
+from chessgpt.routes import (
+    board,
+    get_fen,
+    get_levels,
+    get_move_history,
+    make_move,
+    new_game,
+    static_routes,
+)
+from chessgpt.logging.logging import setup_logging  # noqa
+from chessgpt.database.dynamodb import get_dynamodb_client  # noqa
 
 app = Flask(__name__)
 CORS(app)
 
-from chessgpt.database.dynamodb import get_dynamodb_client  # noqa
-from chessgpt.logging.logging import setup_logging  # noqa
 
-setup_logging()
+setup_logging(app)
 
 app.dynamodb_client = get_dynamodb_client()
 
 app.GAMES_TABLE = os.environ["GAMES_TABLE"]
 
-import chessgpt.routes  # noqa
+# register routes
+board(app)
+get_fen(app)
+get_levels(app)
+get_move_history(app)
+make_move(app)
+new_game(app)
+static_routes(app)
 
 app.logger.info("Starting app")
 
