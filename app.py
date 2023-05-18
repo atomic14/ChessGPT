@@ -19,17 +19,21 @@ CORS(app)
 
 app.logger.setLevel(logging.INFO)
 
-
 papertrail_app_name = os.environ.get("PAPERTRAIL_APP_NAME")
 # set the name of the app for papertrail
 if papertrail_app_name:
+    class RequestFormatter(logging.Formatter):
+        def format(self, record):
+            if hasattr(record, 'pathname'):
+                # ensure we have a request context
+                if request:
+                    record.pathname = request.path
+            return super().format(record)
+
     app.logger.name = papertrail_app_name
-    # create a syslog handler to log to papertrail - logs6.papertrailapp.com:47875
     syslog = SysLogHandler(address=("logs6.papertrailapp.com", 47875))
     syslog.setLevel(logging.INFO)
-    formatter = logging.Formatter(
-        f"{papertrail_app_name}: chess %(levelname)s %(message)s"
-    )
+    formatter = RequestFormatter(f"{papertrail_app_name}: chess %(levelname)s %(pathname)s %(message)s")
     syslog.setFormatter(formatter)
     app.logger.addHandler(syslog)
 
@@ -276,40 +280,63 @@ def format_moves(move_history):
     return moves
 
 
+def get_game_over_reason(game_state: GameState, isUsersTurn: bool):
+    board = game_state.board
+    if board.is_game_over():
+        outcome = board.outcome()
+        if outcome is not None:
+            if outcome.termination == chess.Termination.CHECKMATE:
+                if isUsersTurn:
+                    return 'The assistant won by Checkmate!'
+                else:
+                    return 'The user lost to Checkmate!'                    
+            elif outcome.termination == chess.Termination.STALEMATE:
+                return 'Game ended in a stalemate!'
+            elif outcome.termination == chess.Termination.THREEFOLD_REPETITION:
+                return 'Game ended in a threefold repetition!'
+            elif outcome.termination == chess.Termination.FIVEFOLD_REPETITION:
+                return 'Game ended in a fivefold repetition!'
+            elif outcome.termination == chess.Termination.INSUFFICIENT_MATERIAL:
+                return 'Game ended in insufficient material (K vs. K, K vs. KB, or K vs. KN)'
+            else:
+                return 'Game ended in an unspecified way!'
+          
+
 def get_board_state(conversation_id_hash, game_state: GameState):
     # work out who's turn is it from the move_history
     if len(game_state.move_history) % 2 == 0:
         turn = "white"
     else:
         turn = "black"
-    # get the best moves for the assistant or user (give the user grandmaster moves!)
-    best_move_elo = game_state.elo if turn == game_state.assistant_color else 2850
-    stockfish = get_stockfish(best_move_elo, game_state.board.fen())
-    if turn == game_state.assistant_color:
-        best_moves = get_best_move(stockfish)
-        if best_moves:
-            best_moves_san = [game_state.board.san(chess.Move.from_uci(best_moves))]
-        else:
-            best_moves_san = []
+    # check for game over
+    if game_state.board.is_game_over():
+        game_over_reason = get_game_over_reason(game_state, turn != game_state.assistant_color)
+        instructions = f"Game over! {game_over_reason}"
+        # no legal moves
+        best_moves_san = []
     else:
-        best_moves = get_best_moves(stockfish)
-        best_moves_san = [
-            game_state.board.san(chess.Move.from_uci(move["Move"]))
-            for move in best_moves
-        ]
-
-    # create the instructions for the assistant
-    if turn == game_state.assistant_color:
-        if game_state.board.is_game_over():
-            instructions = "The game is over. Show the board to the user using the markdown from the display field. The user won!"
+        # get the best moves for the assistant or user (give the user grandmaster moves!)
+        best_move_elo = game_state.elo if turn == game_state.assistant_color else 2850
+        stockfish = get_stockfish(best_move_elo, game_state.board.fen())
+        if turn == game_state.assistant_color:
+            best_moves = get_best_move(stockfish)
+            if best_moves:
+                best_moves_san = [game_state.board.san(chess.Move.from_uci(best_moves))]
+            else:
+                best_moves_san = []
         else:
+            best_moves = get_best_moves(stockfish)
+            best_moves_san = [
+                game_state.board.san(chess.Move.from_uci(move["Move"]))
+                for move in best_moves
+            ]
+
+        # create the instructions for the assistant
+        if turn == game_state.assistant_color:
             instructions = (
                 f"It's the assistant's turn. The assistant is playing {turn}. Pick a move from the following best moves for {turn}: {', '.join(best_moves_san)}. "
                 + "Use the make move API to make the move for the assistant and the show the board to the user using the markdown from the display field."
             )
-    else:
-        if game_state.board.is_game_over():
-            instructions = "The game is over. Show the board to the user using the markdown from the display field. The assistant won!"
         else:
             instructions = (
                 f"It's the user's turn to move. The user is playing {turn}. Show the board to the user using the markdown from the display field. Prompt the user to make their move using SAN notation"
@@ -333,21 +360,6 @@ def get_levels():
 def new_game():
     conversation_id = request.headers.get("Openai-Conversation-Id")
     conversation_id_hash = get_conversation_id_hash(conversation_id)
-
-    # check to see if there's already a game in progress
-    game_state = load_board(conversation_id_hash)
-    if game_state:
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "message": "There's already a game associated with this conversation. Please create a new conversation to start a new game.",
-                    "board_state": get_board_state(conversation_id_hash, game_state),
-                }
-            ),
-            400,
-        )
-
     data = request.get_json()
     if "assistant_color" not in data:
         return (
@@ -374,6 +386,7 @@ def new_game():
     try:
         elo = int(data["elo"])
     except ValueError:
+        app.logger.error("elo is not a number in request data: " + str(data["elo"]))
         return (
             jsonify(
                 {
@@ -386,6 +399,7 @@ def new_game():
         )
     # check the elo is valid
     if elo < 1350 or elo > 2850:
+        app.logger.error("elo out of range in request data: " + str(data["elo"]))
         return (
             jsonify(
                 {
@@ -399,6 +413,7 @@ def new_game():
     # check the assistant_color is valid
     assistant_color = data["assistant_color"]
     if assistant_color not in ["white", "black"]:
+        app.logger.error("Invalid assistant_color in request data: " + assistant_color)
         return (
             jsonify(
                 {
@@ -423,11 +438,13 @@ def make_move():
     conversation_id_hash = get_conversation_id_hash(conversation_id)
     game_state = load_board(conversation_id_hash)
     if not game_state:
+        app.logger.error("No game found")
         return jsonify({"success": False, "message": "No game found"}), 404
 
     data = request.get_json()
 
     if "move" not in data:
+        app.logger.error("Missing move in request data")
         return (
             jsonify({"success": False, "message": "Missing move in request data"}),
             400,
@@ -443,6 +460,7 @@ def make_move():
             save_board(conversation_id_hash, game_state)
             return jsonify(get_board_state(conversation_id_hash, game_state))
         else:
+            app.logger.error("Illegal move: " + move)
             board_state = get_board_state(conversation_id_hash, game_state)
             board_state["error_message"] = "Illegal move - make sure you use SAN"
             return (
@@ -465,6 +483,7 @@ def get_fen():
     conversation_id_hash = get_conversation_id_hash(conversation_id)
     game_state = load_board(conversation_id_hash)
     if not game_state:
+        app.logger.error("No game found for conversation ID: " + conversation_id)
         return jsonify({"success": False, "message": "No game found"}), 404
     return jsonify({"FEN": game_state.board.fen()})
 
@@ -475,6 +494,7 @@ def get_move_history():
     conversation_id_hash = get_conversation_id_hash(conversation_id)
     game_state = load_board(conversation_id_hash)
     if not board:
+        app.logger.error("No game found for conversation ID: " + conversation_id)
         return jsonify({"success": False, "message": "No game found"}), 404
     moves = format_moves(game_state.move_history)
     return jsonify({"move_history": moves})
@@ -491,12 +511,14 @@ def board():
         # get the query param cid - this is the conversation ID
         conversation_id_hash = request.args.get("cid")
         if conversation_id_hash is None:
+            app.logger.error("Missing cid query parameter")
             return (
                 jsonify({"success": False, "message": "Missing cid query parameter"}),
                 400,
             )
         move = request.args.get("m")
         if move is None:
+            app.logger.error("Missing m query parameter")
             return (
                 jsonify({"success": False, "message": "Missing m query parameter"}),
                 400,
@@ -505,6 +527,7 @@ def board():
         try:
             int(move)
         except ValueError:
+            app.logger.error(", is not an integer query parameter")
             return (
                 jsonify({"success": False, "message": "Invalid m query parameter"}),
                 400,
@@ -512,6 +535,7 @@ def board():
 
         game_state = load_board(conversation_id_hash, int(move))
         if not game_state:
+            app.logger.error("No game found for cid " + conversation_id_hash)
             return jsonify({"success": False, "message": "No game found"}), 404
         board = game_state.board
 
