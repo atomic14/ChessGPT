@@ -1,4 +1,4 @@
-[![Python test](https://github.com/atomic14/ChessGPT/actions/workflows/test.yml/badge.svg)](https://github.com/atomic14/ChessGPT/actions/workflows/test.yml)
+[![Python test](https://github.com/atomic14/ChessGPT/actions/workflows/test.yml/badge.svg)](https://github.com/atomic14/ChessGPT/actions/workflows/test.yml) [![codecov](https://codecov.io/gh/atomic14/ChessGPT/branch/main/graph/badge.svg?token=MEKC00SCFW)](https://codecov.io/gh/atomic14/ChessGPT)
 
 # ChessGPT
 
