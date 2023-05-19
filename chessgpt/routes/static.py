@@ -23,6 +23,9 @@ def static_routes(app):
                 json_response["auth"] = {
                     "type": "service_http",
                     "authorization_type": "bearer",
+                    "verification_tokens": {
+                        "openai": "11fbb1bf3cea43c382f9960f43dcd6a0"
+                    },
                 }
             return jsonify(json_response)
 

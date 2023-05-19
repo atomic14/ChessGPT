@@ -42,6 +42,7 @@ provider:
             - Fn::GetAtt: [GamesTable, Arn]
   environment:
     GAMES_TABLE: ${self:custom.tableName}
+    OPENAI_SECRET: arn:aws:secretsmanager:us-east-1:140049730323:secret:OPENAI_CHESS_SECRET-9pAAQQ
 
 functions:
   api:
