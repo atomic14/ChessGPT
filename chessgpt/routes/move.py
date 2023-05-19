@@ -54,43 +54,28 @@ def make_move_routes(app):
             )
 
         move = data["move"]
-        try:
-            if try_make_move(app, game_state, move):
-                save_board(
-                    app.logger,
-                    app.dynamodb_client,
-                    app.GAMES_TABLE,
-                    conversation_id_hash,
-                    game_state,
-                )
-                return jsonify(
-                    get_board_state(
-                        app.logger,
-                        conversation_id_hash,
-                        game_state,
-                        request.scheme,
-                        request.host,
-                    )
-                )
-            else:
-                legal_moves = get_legal_move_list(app.logger, game_state.board)
-                app.logger.error(
-                    f"Illegal move: {move}, board: {game_state.board.fen()}, valiid moves: {legal_moves}"
-                )
-                board_state = get_board_state(
+        if try_make_move(app, game_state, move):
+            save_board(
+                app.logger,
+                app.dynamodb_client,
+                app.GAMES_TABLE,
+                conversation_id_hash,
+                game_state,
+            )
+            return jsonify(
+                get_board_state(
                     app.logger,
                     conversation_id_hash,
                     game_state,
                     request.scheme,
                     request.host,
                 )
-                board_state["error_message"] = "Illegal move - make sure you use SAN"
-                return (
-                    jsonify(board_state),
-                    400,
-                )
-        except ValueError:
-            app.logger.error("Invalid move format: " + move)
+            )
+        else:
+            legal_moves = get_legal_move_list(app.logger, game_state.board)
+            app.logger.error(
+                f"Illegal move: {move}, board: {game_state.board.fen()}, valiid moves: {legal_moves}"
+            )
             board_state = get_board_state(
                 app.logger,
                 conversation_id_hash,
@@ -98,7 +83,7 @@ def make_move_routes(app):
                 request.scheme,
                 request.host,
             )
-            board_state["error_message"] = "Invalid move format - use SAN"
+            board_state["error_message"] = "Illegal move - make sure you use SAN"
             return (
                 jsonify(board_state),
                 400,
