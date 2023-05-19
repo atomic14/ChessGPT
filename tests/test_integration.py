@@ -40,11 +40,11 @@ def test_env():
 
     # Start dynamodb and seed the database
     env.start_docker()
-    time.sleep(2)  # Wait for docker to start
+    time.sleep(20)  # Wait for docker to start
     env.seed_database()
     # Start server
     env.start_server()
-    time.sleep(2)  # Wait for the server to start
+    time.sleep(5)  # Wait for the server to start
 
     yield  # This is where the testing happens
 
