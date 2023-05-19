@@ -1,6 +1,6 @@
 import boto3
 from functools import wraps
-from flask import request, current_app as app
+from flask import jsonify, request, current_app as app
 from cachetools import cached, TTLCache
 import os
 
@@ -33,8 +33,7 @@ def check_auth(f):
             secret = get_secret(os.environ.get("OPENAI_CHESS_SECRET"), "us-east-1")
             expected_value = "Bearer " + secret
             if not auth_header or auth_header != expected_value:
-                app.logger.info("Authorization failed.")
-                # return jsonify({"message": "Authorization required."}), 401
+                return jsonify({"message": "Authorization required."}), 401
             else:
                 app.logger.info("Authorization successful.")
         else:
