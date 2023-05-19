@@ -1,3 +1,4 @@
+import os
 from flask import jsonify, request, send_from_directory, Response
 
 from chessgpt.logging.logging import exclude_from_log
@@ -24,7 +25,7 @@ def static_routes(app):
                     "type": "service_http",
                     "authorization_type": "bearer",
                     "verification_tokens": {
-                        "openai": "11fbb1bf3cea43c382f9960f43dcd6a0"
+                        "openai": os.environ.get("OPENAI_VERIFY_TOKEN")
                     },
                 }
             return jsonify(json_response)
