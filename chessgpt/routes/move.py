@@ -1,3 +1,4 @@
+import chess
 from flask import jsonify, request
 from chessgpt.authentication.authentication import check_auth
 
@@ -8,6 +9,26 @@ from chessgpt.game_state.game_state import (
     save_board,
 )
 from chessgpt.utils.openai import get_conversation_id_hash
+
+
+def try_make_move(app, game_state, move):
+    legal_moves = get_legal_move_list(app.logger, game_state.board)
+    # check the move is legal
+    if move not in legal_moves:
+        # maybe the move is not in SAN format? Let's try and convert it to SAN
+        try:
+            move_uci = chess.Move.from_uci(move)
+            move = game_state.board.san(move_uci)
+        except ValueError:
+            # not a valid uci move either!
+            return False
+    # try again with the new SAN move
+    if move in legal_moves:
+        # make the move
+        game_state.board.push_san(move)
+        game_state.move_history.append(move)
+        return True
+    return False
 
 
 def make_move(app):
@@ -33,12 +54,8 @@ def make_move(app):
             )
 
         move = data["move"]
-        # check the move is legal
         try:
-            if move in get_legal_move_list(app.logger, game_state.board):
-                # make the move
-                game_state.board.push_san(move)
-                game_state.move_history.append(move)
+            if try_make_move(app, game_state, move):
                 save_board(
                     app.logger,
                     app.dynamodb_client,
@@ -56,7 +73,9 @@ def make_move(app):
                     )
                 )
             else:
-                app.logger.error("Illegal move: " + move)
+                app.logger.error(
+                    f"Illegal move: {move}, board: {game_state.board.fen()}, valiid moves: {legal_moves}"
+                )
                 board_state = get_board_state(
                     app.logger,
                     conversation_id_hash,
