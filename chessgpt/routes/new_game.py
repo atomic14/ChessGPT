@@ -83,12 +83,22 @@ def new_game(app):
         board = chess.Board()
         now = int(datetime.datetime.utcnow().timestamp())
         game_state = GameState(board, [], assistant_color, elo, now, now)
-        save_board(conversation_id_hash, game_state)
+        save_board(
+            app.logger,
+            app.dynamodb_client,
+            app.GAMES_TABLE,
+            conversation_id_hash,
+            game_state,
+        )
         app.logger.info(
             f"New game started. Level {elo} assistant color {assistant_color}"
         )
         return jsonify(
             get_board_state(
-                conversation_id_hash, game_state, request.scheme, request.host
+                app.logger,
+                conversation_id_hash,
+                game_state,
+                request.scheme,
+                request.host,
             )
         )

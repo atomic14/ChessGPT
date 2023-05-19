@@ -1,9 +1,31 @@
-from flask import request, send_from_directory, Response
+from flask import jsonify, request, send_from_directory, Response
 
 from chessgpt.logging.logging import exclude_from_log
+import json
 
 
 def static_routes(app):
+    @app.route("/.well-known/ai-plugin.json")
+    @exclude_from_log
+    def serve_ai_plugin():
+        with open(".well-known/ai-plugin.json", "r") as f:
+            data = f.read()
+            # replace the string PLUGIN_HOSTNAME with the actual hostname
+            data = data.replace("PLUGIN_HOSTNAME", request.host)
+            data = data.replace("PROTOCOL", request.scheme)
+            # get the json
+            json_response = json.loads(data)
+            # fill in the auth settings
+            # for localhost we can only do "none"
+            if "localhost" in request.host:
+                json_response["auth"] = {"type": "none"}
+            else:
+                json_response["auth"] = {
+                    "type": "service_http",
+                    "authorization_type": "bearer",
+                }
+            return jsonify(json_response)
+
     @app.route("/openapi.yaml")
     @exclude_from_log
     def serve_openai_yaml():
