@@ -9,9 +9,11 @@ def get_move_history(app):
     def get_move_history():
         conversation_id = request.headers.get("Openai-Conversation-Id")
         conversation_id_hash = get_conversation_id_hash(conversation_id)
-        game_state = load_board(conversation_id_hash)
+        game_state = load_board(
+            app.logger, app.dynamodb_client, app.GAMES_TABLE, conversation_id_hash
+        )
         if not game_state:
-            app.logger.error("No game found for conversation ID: " + conversation_id)
+            app.logger.error(f"No game found for conversation ID: {conversation_id}")
             return jsonify({"success": False, "message": "No game found"}), 404
-        moves = format_moves(game_state.move_history)
+        moves = format_moves(app.logger, game_state.move_history)
         return jsonify({"move_history": moves})
