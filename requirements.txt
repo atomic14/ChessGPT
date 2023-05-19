@@ -5,3 +5,4 @@ flask-cors
 boto3
 chess
 stockfish
+cachetools

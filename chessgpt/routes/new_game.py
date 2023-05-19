@@ -1,3 +1,5 @@
+import os
+from chessgpt.authentication.authentication import check_auth
 from chessgpt.game_state import GameState
 from flask import jsonify, request
 
@@ -11,7 +13,11 @@ import datetime
 
 def new_game(app):
     @app.route("/api/new_game", methods=["POST"])
+    @check_auth
     def new_game():
+        authorisation = request.headers.get("Authorization")
+        app.logger.info("Authorisation: " + str(authorisation))
+        app.logger.info("Check token:" + str(os.environ.get("OPENAI_SECRET")))
         conversation_id = request.headers.get("Openai-Conversation-Id")
         conversation_id_hash = get_conversation_id_hash(conversation_id)
         data = request.get_json()

@@ -26,6 +26,9 @@ custom:
   OPENAI_VERIFY_TOKEN:
     dev: 11fbb1bf3cea43c382f9960f43dcd6a0
     prod: e22aa09f27464ea8b159eec704c36c60
+  OPENAI_CHESS_SECRET:
+    dev: arn:aws:secretsmanager:us-east-1:140049730323:secret:OPENAI_CHESS_SECRET-9pAAQQ
+    prod: arn:aws:secretsmanager:us-east-1:140049730323:secret:OPENAI_CHESS_SECRET-9pAAQQ
 
 provider:
   name: aws
@@ -52,7 +55,7 @@ functions:
     environment:
       OPENAI_VERIFY_TOKEN: ${self:custom.OPENAI_VERIFY_TOKEN.${sls:stage}}
       PAPERTRAIL_APP_NAME: ${self:custom.PAPERTRAIL_APP_NAME.${sls:stage}}
-      OPENAI_SECRET: arn:aws:secretsmanager:us-east-1:140049730323:secret:OPENAI_CHESS_SECRET-9pAAQQ
+      OPENAI_CHESS_SECRET: ${self:custom.OPENAI_CHESS_SECRET.${sls:stage}}
     memorySize: 4096
     events:
       - httpApi: "*"
@@ -75,6 +78,20 @@ resources:
             KeyType: HASH
         TableName: ${self:custom.tableName}
         BillingMode: PAY_PER_REQUEST
+        # give the lambda permission to get secrets from the AWS Secrets Manager
+    ChessSecretsPolicy:
+      Type: AWS::IAM::Policy
+      Properties:
+        PolicyName: chess-secrets
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: arn:aws:secretsmanager:us-east-1:140049730323:secret:OPENAI_CHESS_SECRET-9pAAQQ
+        Roles:
+          - Ref: IamRoleLambdaExecution
 
 package:
   patterns:

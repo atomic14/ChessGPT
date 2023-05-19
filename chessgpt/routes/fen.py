@@ -1,4 +1,5 @@
 from flask import jsonify, request
+from chessgpt.authentication.authentication import check_auth
 from chessgpt.game_state.game_state import load_board
 
 from chessgpt.utils.openai import get_conversation_id_hash
@@ -6,6 +7,7 @@ from chessgpt.utils.openai import get_conversation_id_hash
 
 def get_fen(app):
     @app.route("/api/fen", methods=["GET"])
+    @check_auth
     def get_fen():
         conversation_id = request.headers.get("Openai-Conversation-Id")
         conversation_id_hash = get_conversation_id_hash(conversation_id)

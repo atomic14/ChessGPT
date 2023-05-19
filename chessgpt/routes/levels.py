@@ -1,5 +1,7 @@
 from flask.json import jsonify
 
+from chessgpt.authentication.authentication import check_auth
+
 
 LEVELS = [
     {
@@ -32,5 +34,6 @@ LEVELS = [
 
 def get_levels(app):
     @app.route("/api/levels", methods=["GET"])
+    @check_auth
     def get_levels():
         return jsonify(LEVELS)

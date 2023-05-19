@@ -1,4 +1,5 @@
 from flask import jsonify, request
+from chessgpt.authentication.authentication import check_auth
 
 from chessgpt.game_state.game_state import (
     get_board_state,
@@ -11,6 +12,7 @@ from chessgpt.utils.openai import get_conversation_id_hash
 
 def make_move(app):
     @app.route("/api/move", methods=["POST"])
+    @check_auth
     def make_move():
         conversation_id = request.headers.get("Openai-Conversation-Id")
         conversation_id_hash = get_conversation_id_hash(conversation_id)
