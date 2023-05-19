@@ -50,7 +50,7 @@ functions:
   api:
     handler: wsgi_handler.handler
     environment:
-      OPENAI_VERIFY_TOKEN: ${self:custom.PAPERTRAIL_APP_NAME.${sls:stage}}
+      OPENAI_VERIFY_TOKEN: ${self:custom.OPENAI_VERIFY_TOKEN.${sls:stage}}
       PAPERTRAIL_APP_NAME: ${self:custom.PAPERTRAIL_APP_NAME.${sls:stage}}
       OPENAI_SECRET: arn:aws:secretsmanager:us-east-1:140049730323:secret:OPENAI_CHESS_SECRET-9pAAQQ
     memorySize: 4096
