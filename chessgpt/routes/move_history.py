@@ -5,7 +5,7 @@ from chessgpt.game_state.game_state import format_moves, load_board
 from chessgpt.utils.openai import get_conversation_id_hash
 
 
-def get_move_history(app):
+def get_move_history_routes(app):
     @app.route("/api/move_history", methods=["GET"])
     @check_auth
     def get_move_history():

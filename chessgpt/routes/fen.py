@@ -5,7 +5,7 @@ from chessgpt.game_state.game_state import load_board
 from chessgpt.utils.openai import get_conversation_id_hash
 
 
-def get_fen(app):
+def get_fen_routes(app):
     @app.route("/api/fen", methods=["GET"])
     @check_auth
     def get_fen():

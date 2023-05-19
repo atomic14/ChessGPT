@@ -32,7 +32,7 @@ LEVELS = [
 ]
 
 
-def get_levels(app):
+def get_levels_routes(app):
     @app.route("/api/levels", methods=["GET"])
     @check_auth
     def get_levels():

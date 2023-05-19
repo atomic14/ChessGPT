@@ -31,7 +31,7 @@ def try_make_move(app, game_state, move):
     return False
 
 
-def make_move(app):
+def make_move_routes(app):
     @app.route("/api/move", methods=["POST"])
     @check_auth
     def make_move():

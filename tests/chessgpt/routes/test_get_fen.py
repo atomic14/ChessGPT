@@ -3,7 +3,7 @@ from flask import Flask
 from flask.testing import FlaskClient
 from unittest.mock import MagicMock, patch
 from chessgpt.game_state.game_state import GameState
-from chessgpt.routes import fen
+from chessgpt.routes import get_fen_routes
 import chess
 
 
@@ -14,7 +14,7 @@ def client():
     app.logger = MagicMock()
     app.dynamodb_client = MagicMock()
     app.GAMES_TABLE = "test_games_table"
-    fen.get_fen(app)  # register the route
+    get_fen_routes(app)  # register the route
     with app.test_client() as client:
         yield client
 

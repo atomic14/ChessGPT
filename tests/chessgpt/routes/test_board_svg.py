@@ -4,7 +4,7 @@ from unittest.mock import ANY
 from flask import Flask
 
 # import your register_routes function
-from chessgpt.routes.board_svg import board
+from chessgpt.routes.board_svg import board_routes
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ def client():
     app.logger = MagicMock()
     app.dynamodb_client = MagicMock()
     app.GAMES_TABLE = "test_games_table"
-    board(app)
+    board_routes(app)
     with app.test_client() as client:
         yield client
 

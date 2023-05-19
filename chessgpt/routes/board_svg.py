@@ -5,7 +5,7 @@ from chessgpt.compression.huffman import decode_board
 from chessgpt.game_state.game_state import load_board
 
 
-def board(app):
+def board_routes(app):
     @app.route("/board.svg", methods=["GET"])
     def board():
         # do we have the b parameter?
