@@ -5,7 +5,7 @@ import requests
 import time
 
 
-class TestEnvironment:
+class EnvironmentSetup:
     def __init__(self):
         self.server_process = None
         self.docker_process = None
@@ -36,7 +36,7 @@ class TestEnvironment:
 
 @pytest.fixture(scope="module", autouse=True)
 def test_env():
-    env = TestEnvironment()
+    env = EnvironmentSetup()
 
     # Start dynamodb and seed the database
     env.start_docker()
