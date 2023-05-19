@@ -30,10 +30,11 @@ def check_auth(f):
         secret_name = os.environ.get("OPENAI_CHESS_SECRET")
         if secret_name:
             auth_header = request.headers.get("Authorization")
-            secret = get_secret(os.environ.get("OPENAI_CHESS_SECRET"), "us-east-1")
-            expected_value = "Bearer " + secret
-            if not auth_header or auth_header != expected_value:
-                return jsonify({"message": "Authorization required."}), 401
+            secret = get_secret(secret_name, "us-east-1")
+            if secret:
+                expected_value = "Bearer " + secret
+                if not auth_header or auth_header != expected_value:
+                    return jsonify({"message": "Authorization required."}), 401
         else:
             app.logger.info("No authentication required.")
         return f(*args, **kwargs)

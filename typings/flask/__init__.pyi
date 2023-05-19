@@ -4,13 +4,14 @@ from werkzeug import Request
 from logging import Logger
 from werkzeug.datastructures import EnvironHeaders
 
+from chessgpt.database.dynamodb import Database
+
 class Flask:
     def __init__(self, import_name: str, **kwargs: Any) -> None: ...
     logger: Logger
     before_request: Callable[..., Any]
     after_request: Callable[..., Any]
-    dynamodb_client: Any
-    GAMES_TABLE: str
+    datavase: Database
     route: Callable[..., Any]
     errorhandler: Callable[..., Any]
 

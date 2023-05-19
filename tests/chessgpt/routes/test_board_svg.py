@@ -8,68 +8,39 @@ from chessgpt.routes.board_svg import board_routes
 
 
 @pytest.fixture
-def client():
+def database():
+    db = MagicMock()
+    db.load_game_state = MagicMock()
+    yield db
+
+
+@pytest.fixture
+def client(database):
     app = Flask(__name__)
     app.logger = MagicMock()
-    app.dynamodb_client = MagicMock()
-    app.GAMES_TABLE = "test_games_table"
+    app.database = database
     board_routes(app)
     with app.test_client() as client:
         yield client
 
 
-@patch("chessgpt.routes.board_svg.load_board", return_value=MagicMock())
-def test_valid_cid_and_m(mock_load_board, client):
-    # mock the return value of load_board
-    mock_load_board.return_value.board = MagicMock()
-
-    response = client.get("/board.svg?cid=testcid&m=1")
-
-    # assert load_board is called with the correct arguments
-    mock_load_board.assert_called_once_with(ANY, ANY, ANY, "testcid", 1)
-
-    assert response.status_code == 200
-    assert response.mimetype == "image/svg+xml"
-
-
-@patch("chessgpt.routes.board_svg.load_board", return_value=None)
-def test_invalid_cid_and_m(mock_load_board, client):
-    response = client.get("/board.svg?cid=testcid&m=1")
-
-    # assert load_board is called with the correct arguments
-    mock_load_board.assert_called_once_with(ANY, ANY, ANY, "testcid", 1)
-
-    assert response.status_code == 404
-    assert response.get_json() == {"success": False, "message": "No game found"}
-
-
-def test_missing_cid(client):
-    response = client.get("/board.svg?m=1")
+def test_missing_b(client):
+    response = client.get("/board.svg?")
 
     assert response.status_code == 400
     assert response.get_json() == {
         "success": False,
-        "message": "Missing cid query parameter",
+        "message": "Missing b query parameter",
     }
 
 
-def test_missing_m(client):
-    response = client.get("/board.svg?cid=testcid")
+def test_invalid_b(client):
+    response = client.get("/board.svg?b=abc")
 
     assert response.status_code == 400
     assert response.get_json() == {
         "success": False,
-        "message": "Missing m query parameter",
-    }
-
-
-def test_invalid_m(client):
-    response = client.get("/board.svg?cid=testcid&m=abc")
-
-    assert response.status_code == 400
-    assert response.get_json() == {
-        "success": False,
-        "message": "Invalid m query parameter",
+        "message": "Invalid b query parameter",
     }
 
 

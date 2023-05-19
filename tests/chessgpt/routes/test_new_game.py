@@ -7,10 +7,18 @@ from chessgpt.routes.new_game import new_game_routes
 
 # create a pytest fixture to initialize a Flask test client
 @pytest.fixture
-def client():
+def database():
+    db = MagicMock()
+    db.load_game_state = MagicMock()
+    db.save_game_state = MagicMock()
+    yield db
+
+
+@pytest.fixture
+def client(database):
     app = Flask(__name__)
     app.logger = MagicMock()
-    app.dynamodb_client = MagicMock()
+    app.database = database
     app.GAMES_TABLE = "test_games_table"
     new_game_routes(app)  # register the route
     with app.test_client() as client:
@@ -60,8 +68,7 @@ def test_new_game_rejects_when_invalid_assistant_color(client: FlaskClient):
     )
 
 
-@patch("chessgpt.routes.new_game.save_board")
-def test_new_game_happy_path(save_board, client: FlaskClient):
+def test_new_game_happy_path(database, client: FlaskClient):
     response = client.post(
         "/api/new_game",
         headers={"Openai-Conversation-Id": "testcid"},
@@ -71,4 +78,4 @@ def test_new_game_happy_path(save_board, client: FlaskClient):
     assert response.status_code == 200
 
     # check that the board was saved
-    assert save_board.call_count == 1
+    assert database.save_game_state.call_count == 1

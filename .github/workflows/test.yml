@@ -28,8 +28,27 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-cov
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Run tests
+      - name: Run unit tests
         run: |
-          PYTHONPATH=. pytest --cov --cov-report=xml
+          PYTHONPATH=. pytest --cov --cov-report=xml -m "not integration"
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: "18"
+      - name: Install yarn
+        run: npm install -g yarn
+      - name: Cache yarn dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/yarn
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+      - name: Install dependencies
+        run: |
+          yarn install
+      - name: Run integration tests
+        run: |
+          PYTHONPATH=. pytest -m "integration"

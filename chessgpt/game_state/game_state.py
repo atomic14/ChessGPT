@@ -1,5 +1,4 @@
 from collections import namedtuple
-import datetime
 
 import chess
 from chessgpt.compression.huffman import decode_board, encode_board
@@ -10,56 +9,6 @@ GameState = namedtuple(
     "GameState",
     ["board", "move_history", "assistant_color", "elo", "created", "updated"],
 )
-
-
-# save the board state to dynamoDB - we'll just save the move history
-def save_board(
-    logger, dynamodb_client, table, conversation_id_hash: str, game_state: GameState
-):
-    logger.debug("Saving board state to dynamoDB")
-    dynamodb_client.put_item(
-        TableName=table,
-        Item={
-            "conversationId": conversation_id_hash,
-            "moves": ",".join(game_state.move_history),
-            "assistant_color": game_state.assistant_color,
-            "elo": str(game_state.elo),
-            "created": str(game_state.created),
-            "updated": str(game_state.updated),
-        },
-    )
-
-
-# load the board up from dynamoDB - we'll get the move history and then
-# replay the moves to get the board state
-def load_board(
-    logger, dynamodb_client, table, conversation_id_hash, max_move=None
-) -> GameState:
-    logger.debug("Loading board state from dynamoDB")
-    result = dynamodb_client.get_item(
-        TableName=table, Key={"conversationId": conversation_id_hash}
-    )
-    item = result.get("Item")
-    if not item:
-        return None  # type: ignore
-
-    moves_string = item.get("moves")
-    if not moves_string:
-        moves = []
-    else:
-        moves = moves_string.split(",")
-    board = chess.Board()
-    if max_move is None:
-        max_move = len(moves)
-    for move in moves[:max_move]:
-        board.push_san(move)
-    assistant_color = item.get("assistant_color")
-    elo = int(item.get("elo", "2000"))
-    elo = max(1350, min(2850, elo))
-    now = datetime.datetime.utcnow().timestamp()
-    created = int(item.get("created", now))
-    updated = int(item.get("updated", now))
-    return GameState(board, moves, assistant_color, elo, created, updated)
 
 
 # get the list of legal moves in SAN format
@@ -118,7 +67,7 @@ def get_game_over_reason(logger, game_state: GameState, isUsersTurn: bool):
             chess.Termination.STALEMATE: "Game ended in a stalemate!",
             chess.Termination.THREEFOLD_REPETITION: "Game ended in a threefold repetition!",
             chess.Termination.FIVEFOLD_REPETITION: "Game ended in a fivefold repetition!",
-            chess.Termination.INSUFFICIENT_MATERIAL: "Game ended in insufficient material (K vs. K, K vs. KB, or K vs. KN)",
+            chess.Termination.INSUFFICIENT_MATERIAL: "Game ended in insufficient material (K vs. K, K vs. KB, or K vs. KN)",  # noqa: E501
         }
 
         if outcome is not None:

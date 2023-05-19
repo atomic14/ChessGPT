@@ -10,8 +10,8 @@ from chessgpt.routes import (
     new_game_routes,
     static_routes,
 )
-from chessgpt.logging.logging import setup_logging  # noqa
-from chessgpt.database.dynamodb import get_dynamodb_client  # noqa
+from chessgpt.logging.logging import setup_logging
+from chessgpt.database.dynamodb import Database
 
 app = Flask(__name__)
 CORS(app)
@@ -19,9 +19,7 @@ CORS(app)
 
 setup_logging(app)
 
-app.dynamodb_client = get_dynamodb_client()
-
-app.GAMES_TABLE = os.environ["GAMES_TABLE"]
+app.database = Database(app.logger)
 
 # register routes
 board_routes(app)

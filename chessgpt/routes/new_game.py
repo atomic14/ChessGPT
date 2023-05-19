@@ -6,7 +6,6 @@ from flask import jsonify, request
 from chessgpt.game_state.game_state import get_board_state
 from .levels import LEVELS
 from chessgpt.utils import get_conversation_id_hash
-from chessgpt.game_state import save_board
 import chess
 import datetime
 
@@ -76,13 +75,7 @@ def new_game_routes(app):
         board = chess.Board()
         now = int(datetime.datetime.utcnow().timestamp())
         game_state = GameState(board, [], assistant_color, elo, now, now)
-        save_board(
-            app.logger,
-            app.dynamodb_client,
-            app.GAMES_TABLE,
-            conversation_id_hash,
-            game_state,
-        )
+        app.database.save_game_state(conversation_id_hash, game_state)
         app.logger.info(
             f"New game started. Level {elo} assistant color {assistant_color}"
         )

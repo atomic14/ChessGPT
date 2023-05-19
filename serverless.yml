@@ -27,6 +27,7 @@ custom:
     dev: 11fbb1bf3cea43c382f9960f43dcd6a0
     prod: e22aa09f27464ea8b159eec704c36c60
   OPENAI_CHESS_SECRET:
+    local: top_secret
     dev: arn:aws:secretsmanager:us-east-1:140049730323:secret:OPENAI_CHESS_SECRET-9pAAQQ
     prod: arn:aws:secretsmanager:us-east-1:140049730323:secret:OPENAI_CHESS_SECRET-9pAAQQ
 

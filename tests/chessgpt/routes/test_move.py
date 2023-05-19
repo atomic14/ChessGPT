@@ -2,7 +2,7 @@ import pytest
 from flask import Flask
 from flask.testing import FlaskClient
 from unittest.mock import MagicMock, Mock, patch
-from chessgpt.game_state import GameState
+from chessgpt.database.dynamodb import Database
 from chessgpt.routes.move import try_make_move, make_move_routes
 import chess
 
@@ -31,24 +31,29 @@ def test_try_make_move():
 
 # create a pytest fixture to initialize a Flask test client
 @pytest.fixture
-def client():
+def database():
+    db = MagicMock()
+    db.load_game_state = MagicMock()
+    db.save_game_state = MagicMock()
+    yield db
+
+
+@pytest.fixture
+def client(database):
     app = Flask(__name__)
     app.logger = MagicMock()
-    app.dynamodb_client = MagicMock()
-    app.GAMES_TABLE = "test_games_table"
+    app.database = database
     make_move_routes(app)  # register the route
     with app.test_client() as client:
         yield client
 
 
-@patch("chessgpt.routes.move.load_board")
-@patch("chessgpt.routes.move.save_board")
-def test_make_san_move_success(mock_save_board, mock_load_board, client: FlaskClient):
+def test_make_san_move_success(database: Database, client: FlaskClient):
     # Mock the GameState object returned by load_board
     mock_game_state = Mock()
     mock_game_state.board = chess.Board()
     mock_game_state.move_history = []
-    mock_load_board.return_value = mock_game_state
+    database.load_game_state.return_value = mock_game_state
 
     response = client.post(
         "/api/move", headers={"Openai-Conversation-Id": "testcid"}, json={"move": "e4"}
@@ -57,14 +62,12 @@ def test_make_san_move_success(mock_save_board, mock_load_board, client: FlaskCl
     assert response.status_code == 200
 
 
-@patch("chessgpt.routes.move.load_board")
-@patch("chessgpt.routes.move.save_board")
-def test_make_uci_move_success(mock_save_board, mock_load_board, client: FlaskClient):
+def test_make_uci_move_success(database: Database, client: FlaskClient):
     # Mock the GameState object returned by load_board
     mock_game_state = Mock()
     mock_game_state.board = chess.Board()
     mock_game_state.move_history = []
-    mock_load_board.return_value = mock_game_state
+    database.load_game_state.return_value = mock_game_state
 
     response = client.post(
         "/api/move",
@@ -75,13 +78,12 @@ def test_make_uci_move_success(mock_save_board, mock_load_board, client: FlaskCl
     assert response.status_code == 200
 
 
-@patch("chessgpt.routes.move.load_board")
-def test_make_invalid_move_fails(mock_load_board, client: FlaskClient):
+def test_make_invalid_move_fails(database: Database, client: FlaskClient):
     # Mock the GameState object returned by load_board
     mock_game_state = Mock()
     mock_game_state.board = chess.Board()
     mock_game_state.move_history = []
-    mock_load_board.return_value = mock_game_state
+    database.load_game_state.return_value = mock_game_state
 
     response = client.post(
         "/api/move",
@@ -92,13 +94,12 @@ def test_make_invalid_move_fails(mock_load_board, client: FlaskClient):
     assert response.status_code == 400
 
 
-@patch("chessgpt.routes.move.load_board")
-def test_make_garbage_move_fails(mock_load_board, client: FlaskClient):
+def test_make_garbage_move_fails(database: Database, client: FlaskClient):
     # Mock the GameState object returned by load_board
     mock_game_state = Mock()
     mock_game_state.board = chess.Board()
     mock_game_state.move_history = []
-    mock_load_board.return_value = mock_game_state
+    database.load_game_state.return_value = mock_game_state
 
     response = client.post(
         "/api/move",

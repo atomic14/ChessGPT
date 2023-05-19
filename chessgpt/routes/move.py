@@ -2,12 +2,7 @@ import chess
 from flask import jsonify, request
 from chessgpt.authentication.authentication import check_auth
 
-from chessgpt.game_state.game_state import (
-    get_board_state,
-    get_legal_move_list,
-    load_board,
-    save_board,
-)
+from chessgpt.game_state.game_state import get_board_state, get_legal_move_list
 from chessgpt.utils.openai import get_conversation_id_hash
 
 
@@ -37,9 +32,8 @@ def make_move_routes(app):
     def make_move():
         conversation_id = request.headers.get("Openai-Conversation-Id")
         conversation_id_hash = get_conversation_id_hash(conversation_id)
-        game_state = load_board(
-            app.logger, app.dynamodb_client, app.GAMES_TABLE, conversation_id_hash
-        )
+        game_state = app.database.load_game_state(conversation_id_hash)
+
         if not game_state:
             app.logger.error("No game found")
             return jsonify({"success": False, "message": "No game found"}), 404
@@ -55,13 +49,7 @@ def make_move_routes(app):
 
         move = data["move"]
         if try_make_move(app, game_state, move):
-            save_board(
-                app.logger,
-                app.dynamodb_client,
-                app.GAMES_TABLE,
-                conversation_id_hash,
-                game_state,
-            )
+            app.database.save_game_state(conversation_id_hash, game_state)
             return jsonify(
                 get_board_state(
                     app.logger,

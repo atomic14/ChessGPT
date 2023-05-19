@@ -2,6 +2,7 @@ import pytest
 from flask import Flask
 from flask.testing import FlaskClient
 from unittest.mock import MagicMock, patch
+from chessgpt.database.dynamodb import Database
 from chessgpt.game_state.game_state import GameState
 from chessgpt.routes import get_move_history_routes
 import chess
@@ -9,18 +10,23 @@ import chess
 
 # create a pytest fixture to initialize a Flask test client
 @pytest.fixture
-def client():
+def database():
+    db = MagicMock()
+    db.load_game_state = MagicMock()
+    yield db
+
+
+@pytest.fixture
+def client(database):
     app = Flask(__name__)
     app.logger = MagicMock()
-    app.dynamodb_client = MagicMock()
-    app.GAMES_TABLE = "test_games_table"
+    app.database = database
     get_move_history_routes(app)  # register the route
     with app.test_client() as client:
         yield client
 
 
-@patch("chessgpt.routes.move_history.load_board")
-def test_get_move_history_success(mock_load_board, client: FlaskClient):
+def test_get_move_history_success(database: Database, client: FlaskClient):
     # Mock the GameState object returned by load_board
     mock_game_state = GameState(
         board=MagicMock(),
@@ -30,7 +36,7 @@ def test_get_move_history_success(mock_load_board, client: FlaskClient):
         created="2023-01-01",
         updated="2023-01-02",
     )
-    mock_load_board.return_value = mock_game_state
+    database.load_game_state.return_value = mock_game_state
 
     response = client.get(
         "/api/move_history", headers={"Openai-Conversation-Id": "testcid"}
@@ -40,10 +46,9 @@ def test_get_move_history_success(mock_load_board, client: FlaskClient):
     assert response.json["move_history"] == ["1. e4 e5", "2. Nf3"]
 
 
-@patch("chessgpt.routes.move_history.load_board")
-def test_get_move_history_no_game_found(mock_load_board, client: FlaskClient):
+def test_get_move_history_no_game_found(database: Database, client: FlaskClient):
     # load_board returns None to simulate no game found
-    mock_load_board.return_value = None
+    database.load_game_state.return_value = None
 
     response = client.get(
         "/api/move_history", headers={"Openai-Conversation-Id": "testcid"}
