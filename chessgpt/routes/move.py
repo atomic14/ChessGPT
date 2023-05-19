@@ -73,6 +73,7 @@ def make_move(app):
                     )
                 )
             else:
+                legal_moves = get_legal_move_list(app.logger, game_state.board)
                 app.logger.error(
                     f"Illegal move: {move}, board: {game_state.board.fen()}, valiid moves: {legal_moves}"
                 )
