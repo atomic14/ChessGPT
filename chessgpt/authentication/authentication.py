@@ -34,8 +34,6 @@ def check_auth(f):
             expected_value = "Bearer " + secret
             if not auth_header or auth_header != expected_value:
                 return jsonify({"message": "Authorization required."}), 401
-            else:
-                app.logger.info("Authorization successful.")
         else:
             app.logger.info("No authentication required.")
         return f(*args, **kwargs)

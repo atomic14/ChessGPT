@@ -58,18 +58,8 @@ def new_game(app):
                 400,
             )
         # check the elo is valid
-        if elo < 1350 or elo > 2850:
-            app.logger.error("elo out of range in request data: " + str(data["elo"]))
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "message": "Invalid elo in request data. Please specify a number between 1350 and 2850",
-                        "levels": LEVELS,
-                    }
-                ),
-                400,
-            )
+        # cap the elo at 1350 and 2850
+        elo = max(1350, min(2850, elo))
         # check the assistant_color is valid
         assistant_color = data["assistant_color"]
         if assistant_color not in ["white", "black"]:
