@@ -3,6 +3,8 @@ import os
 import subprocess
 import requests
 import time
+import socket
+import time
 
 
 class EnvironmentSetup:
@@ -34,17 +36,39 @@ class EnvironmentSetup:
             subprocess.call(["docker-compose", "down"])
 
 
+def wait_for_port(port, host="localhost", timeout=60.0):
+    """Wait until a port starts accepting TCP connections.
+    Args:
+        port (int): Port number
+        host (str): Host address on which the port should exist
+        timeout (float): In seconds. How long to wait before raising errors.
+    Raises:
+        TimeoutError: The port isn't accepting connection after time specified in `timeout`.
+    """
+    start_time = time.perf_counter()
+    while True:
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                break
+        except (OSError, ConnectionRefusedError):
+            time.sleep(0.01)
+            if time.perf_counter() - start_time >= timeout:
+                raise TimeoutError(
+                    f"Timed out while waiting for port {port} on {host} to start accepting connections."
+                )
+
+
 @pytest.fixture(scope="module", autouse=True)
 def test_env():
     env = EnvironmentSetup()
 
     # Start dynamodb and seed the database
     env.start_docker()
-    time.sleep(20)  # Wait for docker to start
+    wait_for_port(8000)
     env.seed_database()
     # Start server
     env.start_server()
-    time.sleep(5)  # Wait for the server to start
+    wait_for_port(5204)
 
     yield  # This is where the testing happens
 
