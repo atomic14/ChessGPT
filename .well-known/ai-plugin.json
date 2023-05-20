@@ -11,5 +11,5 @@
   },
   "logo_url": "PROTOCOL://PLUGIN_HOSTNAME/logo.png",
   "contact_email": "chris@cmgresearch.com",
-  "legal_info_url": "http://www.example.com/legal"
+  "legal_info_url": "PROTOCOL://PLUGIN_HOSTNAME/terms.html"
 }

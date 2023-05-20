@@ -50,6 +50,13 @@ def static_routes(app):
     def index():
         return send_from_directory("static", "index.html")
 
+    @app.route("/terms.html")
+    @exclude_from_log
+    def terms():
+        response = send_from_directory("static", "terms.html")
+        response.headers["Cache-Control"] = "public, max-age=86400"
+        return response
+
     @app.route("/site.webmanifest")
     @exclude_from_log
     def site_manifest():
