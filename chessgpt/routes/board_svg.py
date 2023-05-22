@@ -20,7 +20,7 @@ def board_routes(app):
             board = decode_board(b)
             svg_data = chess.svg.board(board=board, size=400)
             response = Response(svg_data, mimetype="image/svg+xml")
-            response.headers["Cache-Control"] = "public, max-age=86400"
+            response.headers["Cache-Control"] = "public, max-age=31536000"
             return response
         except ValueError:
             app.logger.error("Invalid b query parameter")

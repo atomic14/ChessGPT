@@ -25,7 +25,7 @@ custom:
     prod: chess-gpt-prod
   OPENAI_VERIFY_TOKEN:
     dev: 11fbb1bf3cea43c382f9960f43dcd6a0
-    prod: e22aa09f27464ea8b159eec704c36c60
+    prod: c059e5d7904a4d26a1d2fd532927fcf2
   OPENAI_CHESS_SECRET:
     local: top_secret
     dev: arn:aws:secretsmanager:us-east-1:140049730323:secret:OPENAI_CHESS_SECRET-9pAAQQ
