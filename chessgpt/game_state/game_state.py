@@ -63,7 +63,7 @@ def get_game_over_reason(logger, game_state: GameState, isUsersTurn: bool):
         termination_reasons = {
             chess.Termination.CHECKMATE: "The assistant won by Checkmate!"
             if isUsersTurn
-            else "The user lost to Checkmate!",
+            else "The user won by Checkmate!",
             chess.Termination.STALEMATE: "Game ended in a stalemate!",
             chess.Termination.THREEFOLD_REPETITION: "Game ended in a threefold repetition!",
             chess.Termination.FIVEFOLD_REPETITION: "Game ended in a fivefold repetition!",
