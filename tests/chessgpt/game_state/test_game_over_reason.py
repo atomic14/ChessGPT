@@ -25,7 +25,7 @@ def test_stalemate():
 
 def test_checkmate_user_wins():
     result = get_game_over_reason(logger, checkmate_state, False)
-    assert result == "The user lost to Checkmate!"
+    assert result == "The user won by Checkmate!"
 
 
 def test_checkmate_assistant_wins():
