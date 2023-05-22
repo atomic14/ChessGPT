@@ -61,7 +61,13 @@ pip install -r requirements-dev.txt
 Now run pytest
 
 ```
-pytest
+PYTHONPATH=. pytest -m "not integration"
+```
+
+For integration tests run
+
+```
+PYTHONPATH=. pytest -m "integration"
 ```
 
 ## How does it work?
