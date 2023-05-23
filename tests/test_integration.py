@@ -114,6 +114,7 @@ def test_chess_api():
     new_game_state = response.json()
     assert "game_over" in new_game_state
     assert "display" in new_game_state
+    check_image(new_game_state["display"])
 
     # Test /api/move
     move_payload = {
@@ -156,3 +157,13 @@ def test_chess_api():
     fen = fen_result["FEN"]
     assert isinstance(fen, str)
     assert fen == "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+
+    # check that the board can display fen correctly with spaces
+    fen_url = f"{BASE_URL}/board.svg?fen={fen.replace(' ', '%20')}"
+    response = requests.get(fen_url, headers=headers)
+    assert response.status_code == 200
+
+    # check the board can display fen correctly with speces replaced with +
+    fen_url = f"{BASE_URL}/board.svg?fen={fen.replace(' ', '+')}"
+    response = requests.get(fen_url, headers=headers)
+    assert response.status_code == 200
