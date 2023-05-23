@@ -5,6 +5,7 @@ import requests
 import time
 import socket
 import time
+import re
 
 
 class EnvironmentSetup:
@@ -80,6 +81,16 @@ def test_env():
 BASE_URL = "http://localhost:5204"
 
 
+def check_image(display_markdown):
+    # check the image in the display markdown - use a regex to extract it
+    inage_regex = re.compile(r"!\[Board\]\((.*)\)")
+    image_url = inage_regex.search(display_markdown).group(1)
+    # get the image
+    response = requests.get(image_url)
+    assert response.status_code == 200
+    assert response.headers["Content-Type"] == "image/svg+xml; charset=utf-8"
+
+
 @pytest.mark.integration
 def test_chess_api():
     headers = {
@@ -127,6 +138,7 @@ def test_chess_api():
     assert "display" in move_state
 
     assert move_state["game_over"] is False
+    check_image(move_state["display"])
 
     # get the move history
     response = requests.get(f"{BASE_URL}/api/move_history", headers=headers)

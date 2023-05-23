@@ -35,7 +35,7 @@ def test_missing_b(client):
 
 
 def test_invalid_b(client):
-    response = client.get("/board.svg?b=abc")
+    response = client.get("/board.svg?b=b%25ab%5Ecd")
 
     assert response.status_code == 400
     assert response.get_json() == {

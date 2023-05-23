@@ -34,7 +34,9 @@ def encode_board(board):
     # Add padding to the end of the binary string
     padded_binary_string = binary_string.ljust((len(binary_string) + 7) // 8 * 8, "0")
     b = string_to_bytes(padded_binary_string)
-    return base64.urlsafe_b64encode(b).decode()
+    b64 = base64.urlsafe_b64encode(b).decode()
+    # strip off the padding
+    return b64.rstrip("=")
 
 
 def decode_board(encoded_board):
@@ -42,7 +44,10 @@ def decode_board(encoded_board):
     position = 0
     board = chess.Board()
     board.clear()
-    for bit in bytes_to_string(base64.urlsafe_b64decode(encoded_board.encode())):
+    # add on the padding
+    encoded_board += "=" * (-len(encoded_board) % 4)
+    decoded = base64.urlsafe_b64decode(encoded_board.encode())
+    for bit in bytes_to_string(decoded):
         code += bit
         if code in REVERSE_HUFFMAN_DICT:
             piece = REVERSE_HUFFMAN_DICT[code]
