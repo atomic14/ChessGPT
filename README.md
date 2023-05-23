@@ -74,16 +74,8 @@ PYTHONPATH=. pytest -m "integration"
 
 We're using the amazing [python-chess](https://python-chess.readthedocs.io/en/v0.2.0/index.html) library to do all the heavy lifting.
 
-We don't want to help ChatGPT pick better moves - we're just trying to provide it information so that it can keep track of the game and display it to the user.
-
 To handle multiple games from many conversations and users we're using DynamoDB to store the game state.
 
 This lets us pull back the game for a conversation and update it with the latest move.
 
-To display the game we send back an SVG of the game at a particular move index.
-
-## TODO
-
-At the moment, ChatGPT can still lose track of the positions of the pieces - more research is needed to work out the best way to give it more context - or more useful context.
-
-There are no unit tests and the code is definitely not production ready - use at your own risk!
+To display the game we send back an SVG of the game.
