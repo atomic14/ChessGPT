@@ -8,6 +8,9 @@ from flask import request
 def setup_logging(app):
     # setup logging
     app.logger.setLevel(logging.INFO)
+    # are we running locally?
+    if os.environ.get("IS_OFFLINE") == "True":
+        return
     papertrail_app_name = os.environ.get("PAPERTRAIL_APP_NAME")
     # set the name of the app for papertrail
     if papertrail_app_name:
